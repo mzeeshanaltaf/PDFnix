@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PDFnix</title>
+    <!--
+      connect-src and img-src are limited to the app itself, blob: URLs and the
+      local engine (127.0.0.1, any port). See docs/plan/phase-1-foundation.md.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' blob: http://127.0.0.1:*; img-src 'self' blob: http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

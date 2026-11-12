@@ -1,0 +1,37 @@
+# Node / Electron
+node_modules/
+out/
+dist/
+release/
+*.tsbuildinfo
+.eslintcache
+coverage/
+
+# Python engine
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+engine/build/
+engine/dist/
+*.egg-info/
+*.spec
+
+# Logs and local files
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+
+# Claude Code local settings
+.claude/settings.local.json
