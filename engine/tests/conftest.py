@@ -114,6 +114,130 @@ def scanned_pdf(tmp_path):
     return str(path)
 
 
+def _form_stream(doc: pymupdf.Document, content: bytes) -> int:
+    xref = doc.get_new_xref()
+    doc.update_object(xref, "<< /Type /XObject /Subtype /Form /BBox [0 0 14 14] >>")
+    doc.update_stream(xref, content)
+    return xref
+
+
+def build_form() -> pymupdf.Document:
+    """Page 1: text "name", multiline "notes" (max 40 characters), checkbox
+    "agree", radio group "color" (buttons Red and Blue, built like real forms:
+    one parent field with two kid widgets), combo box "country", multi-select
+    list "fruit", read-only text "id" (value "A-1"), signature "sig" and a
+    hidden text field. Page 2, rotated 90: text "city"."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+
+    def add(target, kind, name, rect, **attributes):
+        widget = pymupdf.Widget()
+        widget.field_type = kind
+        widget.field_name = name
+        widget.rect = pymupdf.Rect(rect)
+        for key, value in attributes.items():
+            setattr(widget, key, value)
+        target.add_widget(widget)
+
+    add(page, pymupdf.PDF_WIDGET_TYPE_TEXT, "name", (50, 50, 250, 70), text_fontsize=11)
+    add(
+        page,
+        pymupdf.PDF_WIDGET_TYPE_TEXT,
+        "notes",
+        (50, 80, 250, 140),
+        field_flags=pymupdf.PDF_TX_FIELD_IS_MULTILINE,
+        text_maxlen=40,
+        text_fontsize=10,
+    )
+    add(page, pymupdf.PDF_WIDGET_TYPE_CHECKBOX, "agree", (50, 150, 64, 164))
+    add(
+        page,
+        pymupdf.PDF_WIDGET_TYPE_COMBOBOX,
+        "country",
+        (50, 210, 200, 230),
+        choice_values=["Pakistan", "Germany", "Japan"],
+        text_fontsize=10,
+    )
+    add(
+        page,
+        pymupdf.PDF_WIDGET_TYPE_LISTBOX,
+        "fruit",
+        (50, 240, 200, 300),
+        choice_values=["Apple", "Banana", "Cherry"],
+        field_flags=pymupdf.PDF_CH_FIELD_IS_MULTI_SELECT,
+        text_fontsize=10,
+    )
+    add(
+        page,
+        pymupdf.PDF_WIDGET_TYPE_TEXT,
+        "id",
+        (300, 50, 400, 70),
+        field_value="A-1",
+        field_flags=pymupdf.PDF_FIELD_IS_READ_ONLY,
+        text_fontsize=10,
+    )
+    add(page, pymupdf.PDF_WIDGET_TYPE_SIGNATURE, "sig", (50, 310, 200, 350))
+    second = doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+    add(second, pymupdf.PDF_WIDGET_TYPE_TEXT, "city", (100, 100, 300, 120), text_fontsize=10)
+    page = doc[0]  # new_page invalidates earlier page objects
+    add(page, pymupdf.PDF_WIDGET_TYPE_TEXT, "secret", (300, 300, 400, 320))
+    for widget in page.widgets():
+        if widget.field_name == "secret":
+            doc.xref_set_key(widget.xref, "F", "6")  # hidden
+
+    # A radio group as real forms build it.
+    parent = doc.get_new_xref()
+    kids = []
+    for state, x in (("Red", 50), ("Blue", 80)):
+        on = _form_stream(doc, b"0 g 3 3 8 8 re f")
+        off = _form_stream(doc, b"")
+        kid = doc.get_new_xref()
+        doc.update_object(
+            kid,
+            f"<< /Type /Annot /Subtype /Widget /Rect [{x} 598 {x + 14} 612] "
+            f"/Parent {parent} 0 R /AS /Off /F 4 /P {page.xref} 0 R "
+            f"/AP << /N << /{state} {on} 0 R /Off {off} 0 R >> >> >>",
+        )
+        kids.append(kid)
+    refs = " ".join(f"{kid} 0 R" for kid in kids)
+    doc.update_object(parent, f"<< /FT /Btn /Ff 49152 /T (color) /V /Off /Kids [{refs}] >>")
+    # A checkbox group: one field "size" with two checkbox kids (on states S, L).
+    group = doc.get_new_xref()
+    group_kids = []
+    for state, x in (("S", 150), ("L", 180)):
+        on = _form_stream(doc, b"0 g 2 2 10 10 re f")
+        off = _form_stream(doc, b"")
+        kid = doc.get_new_xref()
+        doc.update_object(
+            kid,
+            f"<< /Type /Annot /Subtype /Widget /Rect [{x} 598 {x + 14} 612] "
+            f"/Parent {group} 0 R /AS /Off /F 4 /P {page.xref} 0 R "
+            f"/AP << /N << /{state} {on} 0 R /Off {off} 0 R >> >> >>",
+        )
+        group_kids.append(kid)
+    group_refs = " ".join(f"{kid} 0 R" for kid in group_kids)
+    doc.update_object(group, f"<< /FT /Btn /T (size) /V /Off /Kids [{group_refs}] >>")
+    refs = f"{refs} {group_refs}"
+    new_fields = f"{parent} 0 R {group} 0 R"
+    annots = doc.xref_get_key(page.xref, "Annots")[1]
+    doc.xref_set_key(page.xref, "Annots", f"{annots[:-1]} {refs}]")
+    catalog = doc.pdf_catalog()
+    fields = doc.xref_get_key(catalog, "AcroForm/Fields")[1]
+    doc.xref_set_key(catalog, "AcroForm/Fields", f"{fields[:-1]} {new_fields}]")
+
+    doc[1].set_rotation(90)
+    return pymupdf.open(stream=doc.tobytes(), filetype="pdf")
+
+
+@pytest.fixture
+def form_pdf(tmp_path):
+    path = tmp_path / "form.pdf"
+    doc = build_form()
+    doc.save(path)
+    doc.close()
+    return str(path)
+
+
 @pytest.fixture
 def open_doc(client):
     """Opens a file through the API and returns the response body."""

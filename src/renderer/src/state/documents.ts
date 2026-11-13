@@ -65,7 +65,7 @@ function engineConnected(): boolean {
  * or wrong. Resolves to the result and the password that worked, or null if
  * the user cancelled. Other errors are thrown.
  */
-async function withPassword<T>(
+export async function withPassword<T>(
   name: string,
   attempt: (password?: string) => Promise<T>,
   initial?: string
@@ -98,7 +98,33 @@ function showOpened(opened: OpenedDocument, password?: string): string {
   if (opened.isEncrypted && password !== undefined) passwords.set(id, password)
   void window.api.files.addRecent(opened.path)
   void loadOutline(id)
+  if (opened.isEncrypted) void warnAboutPermissions(opened)
   return id
+}
+
+/**
+ * A protected file may say it must not be changed (permissions granted with
+ * the user password). PDFnix does not enforce that; it says so once, and the
+ * permissions are kept when saving.
+ */
+async function warnAboutPermissions(opened: OpenedDocument): Promise<void> {
+  try {
+    const { permissions } = await engine.info(opened.docId)
+    const refused = [
+      !permissions.modify && 'changing its content',
+      !permissions.annotate && 'adding comments',
+      !permissions.fillForms && 'filling in forms',
+      !permissions.assemble && 'reorganising pages'
+    ].filter((item): item is string => typeof item === 'string')
+    if (refused.length === 0) return
+    toast.warning(`${opened.fileName} restricts ${refused.join(', ')}`, {
+      description:
+        'Its author set these permissions. PDFnix does not block the tools, and saving keeps the permissions as they are.',
+      duration: 10000
+    })
+  } catch {
+    // Without the information there is nothing to warn about.
+  }
 }
 
 /**

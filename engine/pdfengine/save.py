@@ -22,6 +22,7 @@ import errno
 import os
 import stat
 import tempfile
+from collections.abc import Callable
 from typing import Any
 
 import pymupdf
@@ -78,9 +79,12 @@ def _explain(exc: OSError, target: str, stage: str) -> SaveError:
     return SaveError("save_failed", f"{name} could not be saved ({reason}).")
 
 
-def _compacted_copy(session: Session) -> pymupdf.Document:
-    """A throwaway copy of the working document. Call with the lock held."""
-    data = session.history.serialise()
+def open_copy(session: Session, data: bytes | None = None) -> pymupdf.Document:
+    """A throwaway copy of the working document (from ``data``, its serialised
+    bytes, when given), authenticated, without a journal. Call with the lock
+    held."""
+    if data is None:
+        data = session.history.serialise()
     copy = pymupdf.open(stream=data, filetype="pdf")
     if copy.needs_pass and not copy.authenticate(session.password or ""):
         copy.close()
@@ -88,8 +92,32 @@ def _compacted_copy(session: Session) -> pymupdf.Document:
     return copy
 
 
+def write_document(doc: pymupdf.Document, target: str) -> int:
+    """Writes ``doc`` (a throwaway document, never a working one) to
+    ``target`` atomically, compacted, keeping its encryption. Returns the file
+    size."""
+    return _write_atomically(
+        target,
+        lambda temp: doc.save(temp, garbage=3, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP),
+    )
+
+
 def write_pdf(session: Session, target: str) -> int:
     """Writes the document to ``target`` atomically. Returns the file size."""
+
+    def write(temp: str) -> None:
+        with session.lock:
+            copy = open_copy(session)
+            try:
+                copy.save(temp, garbage=3, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
+            finally:
+                copy.close()
+
+    return _write_atomically(target, write)
+
+
+def check_target(target: str) -> None:
+    """Raises if a file cannot be written at ``target``."""
     folder = os.path.dirname(target) or "."
     if not os.path.isdir(folder):
         raise SaveError("folder_not_found", f"The folder does not exist: {folder}")
@@ -97,6 +125,13 @@ def write_pdf(session: Session, target: str) -> int:
         raise BadRequestError(f"{target} is a folder.")
     if os.path.exists(target) and _is_read_only(target):
         raise SaveError("file_read_only", f"{os.path.basename(target)} is read-only.")
+
+
+def _write_atomically(target: str, write: Callable[[str], None]) -> int:
+    """Calls ``write(temp)`` for a temporary file next to ``target``, then
+    puts it in place. Returns the file size."""
+    folder = os.path.dirname(target) or "."
+    check_target(target)
 
     try:
         handle, temp = tempfile.mkstemp(
@@ -107,12 +142,7 @@ def write_pdf(session: Session, target: str) -> int:
         raise _explain(exc, target, "write") from None
 
     try:
-        with session.lock:
-            copy = _compacted_copy(session)
-            try:
-                copy.save(temp, garbage=3, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
-            finally:
-                copy.close()
+        write(temp)
         size = os.path.getsize(temp)
         try:
             os.replace(temp, target)

@@ -154,6 +154,35 @@ describe('tab store', () => {
     expect(tab.history).toEqual(CHANGED)
   })
 
+  it('replaces every page after a structural change', () => {
+    const id = store().addTab(opened('a.pdf', 3))
+    store().setPage(id, 2)
+    store().selectAnnotation(id, { annotId: 5, page: 2 })
+    store().patchSearch(id, { query: 'x', status: 'done', hits: [], activeIndex: 0 })
+    store().applyMutation(id, {
+      revision: 4,
+      dirtyPages: [0, 1],
+      pageCount: 2,
+      pages: [
+        { index: 0, width: 100, height: 200, rotation: 0 },
+        { index: 1, width: 300, height: 400, rotation: 90 }
+      ],
+      structure: true,
+      ...CHANGED
+    })
+    const tab = getActiveTab()!
+    expect(tab.pageCount).toBe(2)
+    expect(tab.pages).toEqual([
+      { width: 100, height: 200, rotation: 0 },
+      { width: 300, height: 400, rotation: 90 }
+    ])
+    expect(tab.pageRevisions).toEqual([4, 4])
+    expect(tab.page).toBe(1)
+    expect(tab.selectedAnnotation).toBeNull()
+    expect(tab.outline).toBeNull()
+    expect(tab.search).toMatchObject({ query: 'x', status: 'idle', activeIndex: -1 })
+  })
+
   it('tracks unsaved changes from the engine, not from the revision', () => {
     const id = store().addTab(opened('a.pdf', 3))
     expect(getActiveTab()!.history.modified).toBe(false)

@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import { Comments } from '@/panels/Comments'
 import { Outline } from '@/panels/Outline'
 import { Search } from '@/panels/Search'
-import { Thumbnails } from '@/panels/Thumbnails'
+import { ThumbnailsPanel } from '@/panels/Thumbnails'
 import type { DocumentTab, SidePanelId } from '@/state/tabs'
 import { openSearch, setSidePanel } from './commands'
 import { ToolbarButton } from './ToolbarButton'
@@ -18,7 +18,7 @@ const PANELS: { id: SidePanelId; label: string; icon: LucideIcon }[] = [
 function PanelBody({ tab, panel }: { tab: DocumentTab; panel: SidePanelId }): React.JSX.Element {
   switch (panel) {
     case 'thumbnails':
-      return <Thumbnails tab={tab} />
+      return <ThumbnailsPanel tab={tab} />
     case 'outline':
       return <Outline tab={tab} />
     case 'search':

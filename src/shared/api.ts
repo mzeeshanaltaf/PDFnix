@@ -102,7 +102,20 @@ export const MENU_COMMANDS = [
   'tools.sign',
   'tools.initials',
   'tools.initialsAllPages',
-  'tools.manageSignatures'
+  'tools.manageSignatures',
+  'tools.redact',
+  'document.organise',
+  'document.insertBlank',
+  'document.insertFromFile',
+  'document.extract',
+  'document.split',
+  'document.merge',
+  'document.redact',
+  'document.watermark',
+  'document.headerFooter',
+  'forms.highlight',
+  'forms.reset',
+  'forms.flatten'
 ] as const
 
 export type MenuCommand = (typeof MENU_COMMANDS)[number]
@@ -174,6 +187,13 @@ export interface NewSignature {
 /** The answer to "Save changes to … before closing?". */
 export type UnsavedChoice = 'save' | 'discard' | 'cancel'
 
+/** What `files.choose` asks for. */
+export type FileChoice = 'pdf' | 'pdfs' | 'image'
+
+export function isFileChoice(value: unknown): value is FileChoice {
+  return value === 'pdf' || value === 'pdfs' || value === 'image'
+}
+
 export type Unsubscribe = () => void
 
 /** The API the preload script exposes to the renderer as `window.api`. */
@@ -211,7 +231,13 @@ export interface Api {
     /** Shows the Open dialog. Resolves with the chosen paths (none if cancelled). */
     showOpenDialog(): Promise<string[]>
     /** Shows the Save As dialog, starting at `defaultPath`. Null if cancelled. */
-    showSaveDialog(defaultPath: string): Promise<string | null>
+    showSaveDialog(defaultPath: string, title?: string): Promise<string | null>
+    /** Shows an Open dialog for one PDF, several PDFs or one picture (PNG/JPEG). */
+    choose(kind: FileChoice, title?: string): Promise<string[]>
+    /** Shows a folder picker. Null if cancelled. */
+    chooseFolder(defaultPath?: string, title?: string): Promise<string | null>
+    /** Opens Explorer with the file selected. */
+    showInFolder(path: string): void
     /** The path on disk of a dropped file, or '' if it has none. */
     pathForFile(file: File): string
     /**
@@ -257,6 +283,9 @@ export const IPC = {
   themeSet: 'theme:set',
   themeChanged: 'theme:changed',
   filesShowOpenDialog: 'files:showOpenDialog',
+  filesChoose: 'files:choose',
+  filesChooseFolder: 'files:chooseFolder',
+  filesShowInFolder: 'files:showInFolder',
   filesTakePending: 'files:takePending',
   filesOpenRequest: 'files:openRequest',
   filesGetRecent: 'files:getRecent',

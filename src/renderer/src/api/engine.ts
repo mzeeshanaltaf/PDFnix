@@ -16,7 +16,9 @@ export class EngineApiError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
-    message: string
+    message: string,
+    /** Further fields of the error, e.g. `path` of the file that needs a password. */
+    readonly details: Record<string, unknown> = {}
   ) {
     super(message)
     this.name = 'EngineApiError'
@@ -384,6 +386,144 @@ export interface MutationResult extends HistoryState {
   pageCount: number
   /** Size and rotation of each dirty page. */
   pages: (PageInfo & { index: number })[]
+  /**
+   * Pages were reordered, added or removed: every page is dirty, `pages`
+   * lists all of them, and page indexes now mean different pages.
+   */
+  structure?: boolean
+}
+
+/** A file written by extract, split or merge. */
+export interface WrittenFile {
+  path: string
+  fileName: string
+  pageCount: number
+  /** Split by bookmarks: the bookmark the part starts at. */
+  title?: string | null
+}
+
+export type SplitRequest =
+  { mode: 'ranges'; ranges: number[][] } | { mode: 'every'; n: number } | { mode: 'bookmarks' }
+
+export interface MergeInput {
+  path: string
+  password?: string
+  /** 0-based pages in the order wanted; omit for all. */
+  pages?: number[]
+}
+
+export type FormFieldType =
+  'text' | 'checkbox' | 'radio' | 'combobox' | 'listbox' | 'signature' | 'button'
+
+export type FieldValueType = string | boolean | string[] | null
+
+export interface FormField {
+  /** The widget's id; a radio group has one per button. */
+  fieldId: number
+  page: number
+  rect: Rect
+  type: FormFieldType
+  name: string
+  label: string
+  /** text/combobox: string; checkbox: boolean; radio: export value or null; listbox: string[]. */
+  value: FieldValueType
+  flags: {
+    readOnly: boolean
+    required: boolean
+    multiline: boolean
+    password: boolean
+    comb: boolean
+    editable: boolean
+    multiSelect: boolean
+    noToggleToOff: boolean
+  }
+  /** 0 = automatic. */
+  fontSize: number
+  textColor: string
+  align: TextAlign
+  maxLength?: number
+  options?: { value: string; label: string }[]
+  /** checkbox/radio: the value this button stands for. */
+  exportValue?: string
+}
+
+export interface FieldValue {
+  fieldId: number
+  value: FieldValueType
+}
+
+export interface RedactionMark {
+  annotId: number
+  page: number
+  rect: Rect
+  /** "area" removes what is under it; "annotation" removes one annotation. */
+  kind: 'area' | 'annotation'
+  fill: string | null
+  overlayText: string
+  /** The text under the mark (or the annotation's comment), for review. */
+  text: string
+}
+
+export interface MarkOptions {
+  fill?: string | null
+  overlayText?: string
+}
+
+export interface RedactionMarksResult extends MutationResult {
+  marks: RedactionMark[]
+  /** Search only. */
+  matches?: number
+}
+
+export type WatermarkPosition =
+  | 'center'
+  | 'top-left'
+  | 'top'
+  | 'top-right'
+  | 'left'
+  | 'right'
+  | 'bottom-left'
+  | 'bottom'
+  | 'bottom-right'
+
+export interface WatermarkOptions {
+  kind: 'text' | 'image'
+  text?: string
+  imagePath?: string
+  fontFamily?: FontFamily
+  bold?: boolean
+  fontSize?: number
+  color?: string
+  /** 0 to 1. */
+  opacity?: number
+  /** Degrees, counter-clockwise. */
+  rotation?: number
+  position?: WatermarkPosition
+  /** Image: width as a fraction of the page width. */
+  scale?: number
+  layer?: 'over' | 'under'
+  /** Omit for every page. */
+  pages?: number[]
+}
+
+export interface HeaderFooterTexts {
+  left: string
+  center: string
+  right: string
+}
+
+export interface HeaderFooterOptions {
+  header?: HeaderFooterTexts
+  footer?: HeaderFooterTexts
+  fontFamily?: FontFamily
+  bold?: boolean
+  fontSize?: number
+  color?: string
+  margins?: { top: number; bottom: number; left: number; right: number }
+  pages?: number[]
+  startNumber?: number
+  /** What `{date}` becomes. */
+  date?: string
 }
 
 export type RotateResult = MutationResult
@@ -428,17 +568,22 @@ function getConnection(): Promise<EngineConnection> {
 async function toApiError(response: Response): Promise<EngineApiError> {
   let code = 'http_error'
   let message = `The engine returned HTTP ${response.status}.`
+  let details: Record<string, unknown> = {}
   try {
     const body: unknown = await response.json()
     if (typeof body === 'object' && body !== null && 'error' in body) {
-      const error = (body as { error: { code?: unknown; message?: unknown } }).error
-      if (typeof error?.code === 'string') code = error.code
-      if (typeof error?.message === 'string') message = error.message
+      const error = (body as { error: Record<string, unknown> | null }).error
+      if (error && typeof error === 'object') {
+        const { code: errorCode, message: errorMessage, ...rest } = error
+        if (typeof errorCode === 'string') code = errorCode
+        if (typeof errorMessage === 'string') message = errorMessage
+        details = rest
+      }
     }
   } catch {
     // Not JSON; keep the generic message.
   }
-  return new EngineApiError(response.status, code, message)
+  return new EngineApiError(response.status, code, message, details)
 }
 
 interface RequestOptions {
@@ -624,5 +769,142 @@ export const engine = {
     }),
 
   discardRecovery: (recoveryId: string): Promise<{ discarded: boolean }> =>
-    request('DELETE', `/recovery/${encodeURIComponent(recoveryId)}`)
+    request('DELETE', `/recovery/${encodeURIComponent(recoveryId)}`),
+
+  // --- Pages ---------------------------------------------------------------
+
+  /** `order` lists every page index once, in the new order. */
+  reorderPages: (docId: string, order: number[]): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/pages/reorder`, { body: { order } }),
+
+  deletePages: (docId: string, pages: number[]): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/pages/delete`, { body: { pages } }),
+
+  duplicatePages: (docId: string, pages: number[]): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/pages/duplicate`, { body: { pages } }),
+
+  /** Blank pages before index `at`; the size defaults to the neighbouring page. */
+  insertBlankPages: (
+    docId: string,
+    at: number,
+    count = 1,
+    size?: { width: number; height: number }
+  ): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/pages/insert-blank`, {
+      body: { at, count, ...size }
+    }),
+
+  /** Inserts another PDF before `at`. Errors: `password_required`, `password_incorrect`. */
+  insertPdf: (
+    docId: string,
+    path: string,
+    at: number,
+    options: { password?: string; fromPages?: number[] } = {}
+  ): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/pages/insert-pdf`, {
+      body: { path, at, ...options }
+    }),
+
+  extractPages: (docId: string, pages: number[], outPath: string): Promise<WrittenFile> =>
+    request<WrittenFile>('POST', `${doc(docId)}/pages/extract`, { body: { pages, outPath } }),
+
+  /** Writes the parts to `outDir`. Error `files_exist` (`details.paths`) unless `overwrite`. */
+  split: (
+    docId: string,
+    split: SplitRequest,
+    outDir: string,
+    nameTemplate: string,
+    overwrite = false
+  ): Promise<{ files: WrittenFile[] }> =>
+    request<{ files: WrittenFile[] }>('POST', `${doc(docId)}/split`, {
+      body: { ...split, outDir, nameTemplate, overwrite }
+    }),
+
+  /** Combines files into a new one. A password error names the file in `details.path`. */
+  merge: (inputs: MergeInput[], outPath: string): Promise<WrittenFile> =>
+    request<WrittenFile>('POST', '/merge', { body: { inputs, outPath } }),
+
+  // --- Forms ---------------------------------------------------------------
+
+  formFields: (docId: string, signal?: AbortSignal): Promise<FormField[]> =>
+    request<FormField[]>('GET', `${doc(docId)}/forms`, { signal }),
+
+  setFieldValues: (docId: string, values: FieldValue[]): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/forms/values`, { body: { values } }),
+
+  flattenForm: (docId: string): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/forms/flatten`),
+
+  resetForm: (docId: string): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/forms/reset`),
+
+  // --- Redaction -----------------------------------------------------------
+
+  redactionMarks: (docId: string, signal?: AbortSignal): Promise<RedactionMark[]> =>
+    request<RedactionMark[]>('GET', `${doc(docId)}/redactions`, { signal }),
+
+  markForRedaction: (
+    docId: string,
+    page: number,
+    areas: { rects?: Rect[]; quads?: Quad[] },
+    options: MarkOptions = {}
+  ): Promise<RedactionMarksResult> =>
+    request<RedactionMarksResult>('POST', `${doc(docId)}/redactions`, {
+      body: { page, ...areas, ...options }
+    }),
+
+  removeRedactionMark: (docId: string, annotId: number): Promise<MutationResult> =>
+    request<MutationResult>('DELETE', `${doc(docId)}/redactions/${annotId}`),
+
+  searchAndMark: (
+    docId: string,
+    query: string,
+    options: SearchOptions & MarkOptions & { pages?: number[] }
+  ): Promise<RedactionMarksResult> =>
+    request<RedactionMarksResult>('POST', `${doc(docId)}/redactions/search`, {
+      body: { query, ...options }
+    }),
+
+  applyRedactions: (
+    docId: string,
+    cleanMetadata = true
+  ): Promise<MutationResult & { metadataCleaned: boolean }> =>
+    request('POST', `${doc(docId)}/redactions/apply`, { body: { cleanMetadata } }),
+
+  // --- Watermark, header and footer ----------------------------------------
+
+  addWatermark: (docId: string, options: WatermarkOptions): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/watermark`, { body: options }),
+
+  /** PNG of `page` with the watermark, at `previewScale` pixels per point. */
+  previewWatermark: async (
+    docId: string,
+    options: WatermarkOptions,
+    page: number,
+    previewScale: number,
+    signal?: AbortSignal
+  ): Promise<Blob> => {
+    const response = await send('POST', `${doc(docId)}/watermark/preview`, {
+      body: { ...options, page, previewScale },
+      signal
+    })
+    return response.blob()
+  },
+
+  addHeaderFooter: (docId: string, options: HeaderFooterOptions): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/header-footer`, { body: options }),
+
+  previewHeaderFooter: async (
+    docId: string,
+    options: HeaderFooterOptions,
+    page: number,
+    previewScale: number,
+    signal?: AbortSignal
+  ): Promise<Blob> => {
+    const response = await send('POST', `${doc(docId)}/header-footer/preview`, {
+      body: { ...options, page, previewScale },
+      signal
+    })
+    return response.blob()
+  }
 }

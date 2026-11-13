@@ -2,7 +2,16 @@ import { useEffect, useState } from 'react'
 import { FileDown } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ConfirmDialog } from '@/dialogs/ConfirmDialog'
+import { HeaderFooterDialog } from '@/dialogs/HeaderFooterDialog'
+import { MergeDialog } from '@/dialogs/MergeDialog'
+import { OrganiseDialog } from '@/dialogs/OrganiseDialog'
+import { PageRangeDialog } from '@/dialogs/PageRangeDialog'
 import { PasswordDialog } from '@/dialogs/PasswordDialog'
+import { RedactDialog } from '@/dialogs/RedactDialog'
+import { SplitDialog } from '@/dialogs/SplitDialog'
+import { WatermarkDialog } from '@/dialogs/WatermarkDialog'
+import { FormBar } from '@/shell/FormBar'
 import { PreferencesDialog } from '@/dialogs/PreferencesDialog'
 import { PropertiesDialog } from '@/dialogs/PropertiesDialog'
 import { RecoveryDialog } from '@/dialogs/RecoveryDialog'
@@ -35,17 +44,22 @@ function useFileDrop(): boolean {
   useEffect(() => {
     // dragenter and dragleave fire for every element the pointer crosses.
     let depth = 0
+    // The page organiser takes files dropped on it itself (to insert them).
+    const overOrganiser = (event: DragEvent): boolean =>
+      event.target instanceof Element && event.target.closest('[data-page-organiser]') !== null
     const onEnter = (event: DragEvent): void => {
       if (!carriesFiles(event)) return
       depth += 1
-      setDragging(true)
+      setDragging(!overOrganiser(event))
     }
     const onOver = (event: DragEvent): void => {
+      // Other drags (pages in the organiser, files in the merge list) are
+      // their targets' business.
+      if (!carriesFiles(event)) return
       // Without this the drop is refused; with it nothing can navigate the window.
       event.preventDefault()
-      if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = carriesFiles(event) ? 'copy' : 'none'
-      }
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+      setDragging(!overOrganiser(event))
     }
     const onLeave = (event: DragEvent): void => {
       if (!carriesFiles(event)) return
@@ -56,6 +70,8 @@ function useFileDrop(): boolean {
       event.preventDefault()
       depth = 0
       setDragging(false)
+      // The organiser has inserted the files already.
+      if (overOrganiser(event)) return
       const files = event.dataTransfer?.files
       if (files && files.length > 0) void openDroppedFiles(Array.from(files))
     }
@@ -96,6 +112,7 @@ function App(): React.JSX.Element {
           <SidePanel tab={tab} />
           <main className="relative min-w-0 flex-1 bg-canvas">
             {tab ? <PageList key={tab.id} tab={tab} /> : <EmptyState />}
+            {tab && <FormBar tab={tab} />}
           </main>
         </div>
         <StatusBar />
@@ -112,7 +129,15 @@ function App(): React.JSX.Element {
       <RecoveryDialog />
       <PreferencesDialog />
       <SignatureDialog />
-      {/* Last, so the password prompt shows above the recovery dialog. */}
+      <OrganiseDialog />
+      <SplitDialog />
+      <MergeDialog />
+      <RedactDialog />
+      <WatermarkDialog />
+      <HeaderFooterDialog />
+      <PageRangeDialog />
+      <ConfirmDialog />
+      {/* Last, so the password prompt shows above the other dialogs. */}
       <PasswordDialog />
       <PropertiesDialog />
       <Toaster position="bottom-right" offset={{ bottom: 36, right: 16 }} />

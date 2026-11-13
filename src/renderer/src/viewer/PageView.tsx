@@ -3,6 +3,7 @@ import { cn } from 'cn'
 import type { PageInfo, SearchHit } from '@/api/engine'
 import { AnnotationLayer } from './AnnotationLayer'
 import { EditLayer } from './EditLayer'
+import { FormLayer } from './FormLayer'
 import { cssScale, quadBounds, rectToPx, renderScale } from './geometry'
 import { usePageImage } from './hooks'
 import type { PageBox } from './layout'
@@ -133,6 +134,7 @@ export const PageView = memo(function PageView({
         height={page.height}
         selectedId={selectedAnnotId}
       />
+      <FormLayer tabId={tabId} page={box.index} zoom={zoom} />
       <EditLayer
         tabId={tabId}
         docId={docId}

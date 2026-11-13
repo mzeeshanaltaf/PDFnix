@@ -607,4 +607,138 @@
   .pdf-annotation-layer > .pdf-handle {
     z-index: 1;
   }
+
+  /*
+   * The form layer (phase 5): real inputs over the form fields, above the
+   * annotation layer and below the edit layer. The page image shows the
+   * values; inputs are see-through until they are being typed in.
+   */
+  .pdf-form-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .pdf-form-field {
+    position: absolute;
+    pointer-events: auto;
+    border-radius: 1px;
+  }
+
+  .pdf-form-field.highlight:not(.locked) {
+    background: rgb(37 99 235 / 0.1);
+    box-shadow: inset 0 0 0 1px rgb(37 99 235 / 0.35);
+  }
+
+  .pdf-form-field.highlight.locked {
+    box-shadow: inset 0 0 0 1px rgb(115 115 115 / 0.4);
+  }
+
+  .pdf-form-field.locked {
+    pointer-events: none;
+  }
+
+  .pdf-form-field.type-signature {
+    pointer-events: auto;
+    cursor: not-allowed;
+  }
+
+  .pdf-form-field.required {
+    box-shadow: inset 0 0 0 1px rgb(220 38 38 / 0.7);
+  }
+
+  .pdf-form-field:focus-within {
+    box-shadow: 0 0 0 2px rgb(37 99 235 / 0.8);
+  }
+
+  .pdf-form-input {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0 2px;
+    border: 0;
+    outline: 0;
+    resize: none;
+    background: transparent;
+    font-family: Arial, Helvetica, 'Liberation Sans', sans-serif;
+    line-height: 1.15;
+    caret-color: #111;
+    user-select: text;
+  }
+
+  textarea.pdf-form-input {
+    padding-top: 1px;
+  }
+
+  input.pdf-form-input {
+    line-height: normal;
+  }
+
+  /* While typing (and until the page shows it), the input draws its own text
+     over a white background that hides the page's copy of the value. */
+  .pdf-form-input.own {
+    background: #fff;
+  }
+
+  .pdf-form-check {
+    display: block;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .pdf-form-select {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    outline: 0;
+    padding: 0 1px;
+    background: transparent;
+    font-family: Arial, Helvetica, 'Liberation Sans', sans-serif;
+    cursor: pointer;
+    /* The page image shows the chosen value; the list opens on click. */
+    opacity: 0;
+  }
+
+  .pdf-form-select:focus {
+    opacity: 1;
+    background: #fff;
+  }
+
+  /* List boxes are always shown: the page image does not mark the choices. */
+  .pdf-form-select.list {
+    opacity: 1;
+    background: rgb(255 255 255 / 0.92);
+    overflow-y: auto;
+  }
+
+  .pdf-form-select.list option:checked {
+    background: rgb(37 99 235 / 0.85)
+      linear-gradient(0deg, rgb(37 99 235 / 0.85) 0%, rgb(37 99 235 / 0.85) 100%);
+    color: #fff;
+  }
+
+  /* Redaction (phase 5): the rectangle being dragged with the Redact tool. */
+  .pdf-edit-surface.tool-redact {
+    cursor: crosshair;
+  }
+
+  .pdf-redact-draft {
+    position: absolute;
+    pointer-events: none;
+    outline: 1.5px solid rgb(220 38 38 / 0.9);
+    background: rgb(220 38 38 / 0.08);
+  }
+
+  /* Page organiser (phase 5). */
+  .pdf-organiser-gap {
+    position: absolute;
+    pointer-events: none;
+    background: var(--color-primary, #2563eb);
+    border-radius: 2px;
+  }
 }

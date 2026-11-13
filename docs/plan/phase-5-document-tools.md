@@ -22,7 +22,7 @@ New modules: `pages.py` (extended), `forms.py`, `redact.py`, `watermark.py`.
 | `POST /v1/docs/{id}/pages/delete` `{ pages }` | Delete pages; refuses to delete all pages |
 | `POST /v1/docs/{id}/pages/duplicate` `{ pages }` | Copy pages after themselves |
 | `POST /v1/docs/{id}/pages/insert-blank` `{ at, width, height, count }` | Blank pages; size defaults to the neighbouring page |
-| `POST /v1/docs/{id}/pages/insert-pdf` `{ path, password?, at, fromPages? }` | Merge another PDF in at a position (`doc.insert_pdf`; inside a journal operation it only works with phase 4's `compat.py` shim loaded — see STATUS.md, Verified facts) |
+| `POST /v1/docs/{id}/pages/insert-pdf` `{ path, password?, at, fromPages? }` | Merge another PDF in at a position (`doc.insert_pdf`; inside a journal operation only through `compat.insert_pdf`, which runs PyMuPDF's Python path — see STATUS.md, Verified facts) |
 | `POST /v1/docs/{id}/pages/extract` `{ pages, outPath }` | Write the chosen pages to a new file; the open document is unchanged |
 | `POST /v1/docs/{id}/split` `{ mode: "ranges" \| "every" \| "bookmarks", ranges?, n?, outDir, nameTemplate }` | Write several files; returns the list of paths |
 | `POST /v1/merge` `{ inputs: [{ path, password?, pages? }], outPath }` | Combine files without opening them in tabs |

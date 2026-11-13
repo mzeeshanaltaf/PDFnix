@@ -20,6 +20,7 @@ from .api import build_fonts_router, build_recovery_router, build_router
 from .errors import UnauthorizedError, install_error_handlers
 from .recovery import RECOVERY_DELAY, RecoveryStore
 from .sessions import SessionRegistry
+from .tools_api import build_merge_router, build_tools_router
 
 TOKEN_HEADER = "X-Engine-Token"
 
@@ -95,5 +96,7 @@ def create_app(
     v1.include_router(build_router(sessions, recovery))
     v1.include_router(build_recovery_router(sessions, recovery))
     v1.include_router(build_fonts_router(sessions))
+    v1.include_router(build_tools_router(sessions))
+    v1.include_router(build_merge_router())
     app.include_router(v1)
     return app

@@ -1,11 +1,21 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
-import { IPC, isLayoutMode, isThemeSource, type MenuState, type UnsavedChoice } from '../shared/api'
+import {
+  IPC,
+  isFileChoice,
+  isLayoutMode,
+  isThemeSource,
+  type MenuState,
+  type UnsavedChoice
+} from '../shared/api'
 import type { EngineManager } from './engine'
 import {
   addRecent,
+  chooseFiles,
+  chooseFolder,
   clearRecent,
   listRecent,
   removeRecent,
+  showInFolder,
   showOpenDialog,
   showSaveDialog,
   takePending
@@ -77,9 +87,16 @@ export function registerIpc(engine: EngineManager, onConfirmClose: () => void): 
   )
 
   ipcMain.handle(IPC.filesShowOpenDialog, () => showOpenDialog())
-  ipcMain.handle(IPC.filesShowSaveDialog, (_event, defaultPath: unknown) =>
-    showSaveDialog(defaultPath)
+  ipcMain.handle(IPC.filesShowSaveDialog, (_event, defaultPath: unknown, title: unknown) =>
+    showSaveDialog(defaultPath, title)
   )
+  ipcMain.handle(IPC.filesChoose, (_event, kind: unknown, title: unknown) =>
+    isFileChoice(kind) ? chooseFiles(kind, title) : []
+  )
+  ipcMain.handle(IPC.filesChooseFolder, (_event, defaultPath: unknown, title: unknown) =>
+    chooseFolder(defaultPath, title)
+  )
+  ipcMain.on(IPC.filesShowInFolder, (_event, path: unknown) => showInFolder(path))
   ipcMain.handle(IPC.filesTakePending, () => takePending())
   ipcMain.handle(IPC.filesGetRecent, () => listRecent())
   ipcMain.handle(IPC.filesAddRecent, (_event, path: unknown) => {

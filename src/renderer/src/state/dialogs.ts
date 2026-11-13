@@ -18,14 +18,106 @@ interface DialogsState {
   preferencesOpen: boolean
   /** Recovery copies on offer; the dialog shows while this is not empty. */
   recovery: RecoveryEntry[]
+  /** The tab whose pages the full-window organiser shows, or `null`. */
+  organiseTabId: string | null
+  splitTabId: string | null
+  mergeOpen: boolean
+  redactTabId: string | null
+  watermarkTabId: string | null
+  headerFooterTabId: string | null
 }
 
 export const useDialogs = create<DialogsState>(() => ({
   password: null,
   propertiesTabId: null,
   preferencesOpen: false,
-  recovery: []
+  recovery: [],
+  organiseTabId: null,
+  splitTabId: null,
+  mergeOpen: false,
+  redactTabId: null,
+  watermarkTabId: null,
+  headerFooterTabId: null
 }))
+
+export type ToolDialog =
+  'organiseTabId' | 'splitTabId' | 'redactTabId' | 'watermarkTabId' | 'headerFooterTabId'
+
+/** Opens (with a tab id) or closes (null) one of the document tool dialogs. */
+export function showToolDialog(dialog: ToolDialog, tabId: string | null): void {
+  useDialogs.setState({ [dialog]: tabId } as Partial<DialogsState>)
+}
+
+export function showMerge(open: boolean): void {
+  useDialogs.setState({ mergeOpen: open })
+}
+
+export interface Confirmation {
+  title: string
+  message: string
+  /** Extra lines under the message (file names, say). */
+  details?: string[]
+  confirmLabel: string
+  /** The action cannot be taken back (red button). */
+  destructive?: boolean
+}
+
+interface ConfirmState {
+  current: Confirmation | null
+}
+
+export const useConfirm = create<ConfirmState>(() => ({ current: null }))
+
+let confirmAnswer: ((yes: boolean) => void) | null = null
+
+/** Asks a yes/no question in the app's own dialog. */
+export function confirmAction(question: Confirmation): Promise<boolean> {
+  confirmAnswer?.(false)
+  useConfirm.setState({ current: question })
+  return new Promise((resolve) => {
+    confirmAnswer = resolve
+  })
+}
+
+export interface RangeQuestion {
+  title: string
+  description: string
+  /** Pre-filled text, e.g. "3". */
+  initial: string
+  pageCount: number
+  confirmLabel: string
+}
+
+interface RangeState {
+  current: RangeQuestion | null
+}
+
+export const useRangePrompt = create<RangeState>(() => ({ current: null }))
+
+let rangeAnswer: ((pages: number[] | null) => void) | null = null
+
+/** Asks for a page range; resolves with 0-based pages, or null if cancelled. */
+export function askPageRange(question: RangeQuestion): Promise<number[] | null> {
+  rangeAnswer?.(null)
+  useRangePrompt.setState({ current: question })
+  return new Promise((resolve) => {
+    rangeAnswer = resolve
+  })
+}
+
+export function answerPageRange(pages: number[] | null): void {
+  const resolve = rangeAnswer
+  rangeAnswer = null
+  useRangePrompt.setState({ current: null })
+  resolve?.(pages)
+}
+
+export function answerConfirmation(yes: boolean): void {
+  const resolve = confirmAnswer
+  confirmAnswer = null
+  useConfirm.setState({ current: null })
+  resolve?.(yes)
+}
 
 export function showPreferences(open: boolean): void {
   useDialogs.setState({ preferencesOpen: open })

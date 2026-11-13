@@ -21,6 +21,13 @@ class EngineError(Exception):
         self.code = code
         self.message = message
         self.status = status
+        #: Extra fields for the error object, e.g. ``path`` of the file a
+        #: password is needed for.
+        self.details: dict[str, object] = {}
+
+    def with_details(self, **details: object) -> "EngineError":
+        self.details.update(details)
+        return self
 
 
 class UnauthorizedError(EngineError):
@@ -95,14 +102,19 @@ _STATUS_CODES = {
 }
 
 
-def error_response(code: str, message: str, status: int) -> JSONResponse:
-    return JSONResponse(status_code=status, content={"error": {"code": code, "message": message}})
+def error_response(
+    code: str, message: str, status: int, details: dict[str, object] | None = None
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status,
+        content={"error": {**(details or {}), "code": code, "message": message}},
+    )
 
 
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(EngineError)
     async def _engine_error(_request: Request, exc: EngineError) -> JSONResponse:
-        return error_response(exc.code, exc.message, exc.status)
+        return error_response(exc.code, exc.message, exc.status, exc.details)
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_request: Request, exc: StarletteHTTPException) -> JSONResponse:

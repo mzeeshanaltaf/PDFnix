@@ -1,6 +1,7 @@
 import { memo, useRef, useState } from 'react'
 import type { Rect, TextBlock } from '@/api/engine'
 import { mutate } from '@/state/edits'
+import { markArea } from '@/state/redaction'
 import { commitPending, startPending, usePending } from '@/state/pending'
 import { useSignatures } from '@/state/signatures'
 import { isEditTool, useTools } from '@/state/tools'
@@ -85,6 +86,7 @@ export const EditLayer = memo(function EditLayer({
   const blocks = usePageBlocks(docId, page, revision, pickingObjects)
   const [hover, setHover] = useState<Rect | null>(null)
   const [draft, setDraft] = useState<Rect | null>(null)
+  const [redactDraft, setRedactDraft] = useState<Rect | null>(null)
   const surface = useRef<HTMLDivElement>(null)
   const scale = cssScale(zoom)
   const active = isEditTool(tool)
@@ -276,6 +278,26 @@ export const EditLayer = memo(function EditLayer({
         }
         return
       }
+      case 'redact':
+        follow(
+          event,
+          (point) => setRedactDraft(rectFromDrag(start, point)),
+          (point) => {
+            setRedactDraft(null)
+            // A click (no drag) marks nothing.
+            if (Math.hypot(point.x - start.x, point.y - start.y) < CLICK_SLOP_PT) return
+            const rect = rectFromDrag(start, point)
+            const clamped: Rect = [
+              Math.max(0, rect[0]),
+              Math.max(0, rect[1]),
+              Math.min(width, rect[2]),
+              Math.min(height, rect[3])
+            ]
+            if (clamped[2] - clamped[0] < 1 || clamped[3] - clamped[1] < 1) return
+            void markArea(tabId, page, clamped)
+          }
+        )
+        return
       case 'editText':
       case 'deleteObject': {
         if (!blocks) return
@@ -343,6 +365,7 @@ export const EditLayer = memo(function EditLayer({
         />
       )}
       {draft && <div className="pdf-edit-draft" style={rectToPx(draft, zoom)} />}
+      {redactDraft && <div className="pdf-redact-draft" style={rectToPx(redactDraft, zoom)} />}
       {pending && (
         <EditOverlay
           pending={pending}

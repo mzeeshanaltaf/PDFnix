@@ -20,6 +20,8 @@ export type ToolId =
   | 'deleteObject'
   /** Place the chosen signature or initials. */
   | 'signature'
+  /** Drag a rectangle to mark it for redaction. */
+  | 'redact'
 
 /** Tools that create an annotation, and so have a colour. */
 export type AnnotationTool = MarkupType | 'note'
@@ -42,7 +44,8 @@ export const EDIT_TOOLS: readonly ToolId[] = [
   'draw',
   'deleteObject',
   'signature',
-  'hand'
+  'hand',
+  'redact'
 ]
 
 export function isEditTool(tool: ToolId): boolean {

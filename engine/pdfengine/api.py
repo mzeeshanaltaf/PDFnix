@@ -219,14 +219,20 @@ def build_router(sessions: SessionRegistry, recovery: RecoveryStore) -> APIRoute
         session = sessions.get(doc_id)
         with session.lock:
             step = session.history.undo()
-            return {**session.mutated(step.pages), "undone": step.name}
+            return {
+                **session.mutated(step.pages, structure=step.structure),
+                "undone": step.name,
+            }
 
     @router.post("/{doc_id}/redo")
     def redo(doc_id: str) -> dict[str, Any]:
         session = sessions.get(doc_id)
         with session.lock:
             step = session.history.redo()
-            return {**session.mutated(step.pages), "redone": step.name}
+            return {
+                **session.mutated(step.pages, structure=step.structure),
+                "redone": step.name,
+            }
 
     @router.post("/{doc_id}/save")
     def save(doc_id: str, body: SaveRequest) -> dict[str, Any]:

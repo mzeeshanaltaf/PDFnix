@@ -45,7 +45,9 @@ export function shortcutFor(key: KeyInfo, context: KeyContext): ShortcutAction |
   if (key.ctrlKey) {
     switch (name) {
       case 'o':
-        return key.shiftKey ? null : command('file.open')
+        return command(key.shiftKey ? 'document.organise' : 'file.open')
+      case 'x':
+        return key.shiftKey && !context.typing ? command('document.redact') : null
       case 's':
         return command(key.shiftKey ? 'file.saveAs' : 'file.save')
       case ',':
@@ -133,6 +135,8 @@ export function shortcutFor(key: KeyInfo, context: KeyContext): ShortcutAction |
       return key.shiftKey ? null : command('tools.draw')
     case 'x':
       return key.shiftKey ? null : command('tools.deleteObject')
+    case 'r':
+      return key.shiftKey ? null : command('tools.redact')
     case 'ArrowRight':
       return key.shiftKey ? null : command('go.nextPage')
     case 'ArrowLeft':

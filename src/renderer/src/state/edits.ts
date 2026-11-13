@@ -17,7 +17,7 @@ import { piecesToMarkup } from '../tools/quads'
 import { getViewer } from '../viewer/controller'
 import { rotateQuad } from '../viewer/geometry'
 import { clearTextSelection, selectedWordPieces } from '../viewer/selection'
-import { runSearch } from './documents'
+import { loadOutline, runSearch } from './documents'
 import { useSettings } from './settings'
 import { getTab, useTabs, type DocumentTab, type SelectedAnnotation } from './tabs'
 import { useTools } from './tools'
@@ -49,7 +49,11 @@ export function mutate<T extends MutationResult>(
   tabId: string,
   call: (docId: string) => Promise<T>,
   failure: string,
-  options: { onTurned?: (before: DocumentTab, turned: number[]) => void } = {}
+  options: {
+    onTurned?: (before: DocumentTab, turned: number[]) => void
+    /** Errors not to report (the user cancelled, say). */
+    ignore?: (error: unknown) => boolean
+  } = {}
 ): Promise<T | null> {
   const previous = queues.get(tabId) ?? Promise.resolve()
   const next = previous.then(async (): Promise<T | null> => {
@@ -59,6 +63,14 @@ export function mutate<T extends MutationResult>(
       const result = await call(tab.docId)
       const current = getTab(tabId)
       if (!current || current.docId !== tab.docId) return null
+      if (result.structure) {
+        // Pages moved, appeared or went: the outline and search hits point at
+        // old positions.
+        useTabs.getState().applyMutation(tabId, result)
+        void loadOutline(tabId)
+        if (current.search.query.trim() !== '') void runSearch(tabId)
+        return result
+      }
       const turned = turnedPages(current, result)
       if (turned.length > 0) getViewer(tabId)?.holdPage(current.page)
       useTabs.getState().applyMutation(tabId, result)
@@ -69,7 +81,7 @@ export function mutate<T extends MutationResult>(
       }
       return result
     } catch (error) {
-      toast.error(failure, { description: describe(error) })
+      if (!options.ignore?.(error)) toast.error(failure, { description: describe(error) })
       return null
     }
   })

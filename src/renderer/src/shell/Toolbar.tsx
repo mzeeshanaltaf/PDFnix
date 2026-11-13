@@ -3,11 +3,24 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
+  ClipboardList,
   Columns2,
+  Combine,
   Eraser,
+  EyeOff,
   File,
+  FileCog,
+  FileOutput,
+  FilePlus2,
   Files,
   FolderOpen,
+  Layers,
+  LayoutGrid,
+  ListRestart,
+  PanelTop,
+  Scissors,
+  SquarePlus,
+  Stamp,
   Hand,
   Highlighter,
   Image,
@@ -128,8 +141,60 @@ const AFTER_SHAPES: typeof TOOLS = [
     icon: Eraser,
     command: 'tools.deleteObject',
     shortcut: 'X'
+  },
+  {
+    id: 'redact',
+    label: 'Mark for redaction',
+    icon: EyeOff,
+    command: 'tools.redact',
+    shortcut: 'R'
   }
 ]
+
+/** Page and document tools (phase 5), in the Document menu on the toolbar. */
+function DocumentMenu({ none }: { none: boolean }): React.JSX.Element {
+  const item = (
+    label: string,
+    command: CommandId,
+    Icon: LucideIcon,
+    shortcut?: string
+  ): React.JSX.Element => (
+    <DropdownMenuItem
+      disabled={none && command !== 'document.merge'}
+      onSelect={() => runCommand(command)}
+    >
+      <Icon aria-hidden />
+      {label}
+      {shortcut && <span className="ml-auto text-xs text-muted-foreground">{shortcut}</span>}
+    </DropdownMenuItem>
+  )
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <ToolbarButton icon={FileCog} label="Document tools" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel>Pages</DropdownMenuLabel>
+        {item('Organise pages…', 'document.organise', LayoutGrid, 'Ctrl+Shift+O')}
+        {item('Insert blank page', 'document.insertBlank', SquarePlus)}
+        {item('Insert pages from file…', 'document.insertFromFile', FilePlus2)}
+        {item('Extract pages…', 'document.extract', FileOutput)}
+        {item('Split document…', 'document.split', Scissors)}
+        {item('Merge files…', 'document.merge', Combine)}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Content</DropdownMenuLabel>
+        {item('Redact…', 'document.redact', EyeOff, 'Ctrl+Shift+X')}
+        {item('Watermark…', 'document.watermark', Stamp)}
+        {item('Header and footer…', 'document.headerFooter', PanelTop)}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Form</DropdownMenuLabel>
+        {item('Highlight form fields', 'forms.highlight', ClipboardList)}
+        {item('Reset form…', 'forms.reset', ListRestart)}
+        {item('Flatten form…', 'forms.flatten', Layers)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 const SHAPES: { value: ShapeKind; label: string; icon: LucideIcon }[] = [
   { value: 'square', label: 'Rectangle', icon: Square },
@@ -572,6 +637,7 @@ export function Toolbar(): React.JSX.Element {
       </div>
 
       <div className="flex-1" />
+      <DocumentMenu none={none} />
       <ToolbarButton
         icon={Search}
         label="Find"

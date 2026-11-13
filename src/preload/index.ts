@@ -43,7 +43,12 @@ const api: Api = {
   },
   files: {
     showOpenDialog: () => ipcRenderer.invoke(IPC.filesShowOpenDialog),
-    showSaveDialog: (defaultPath) => ipcRenderer.invoke(IPC.filesShowSaveDialog, defaultPath),
+    showSaveDialog: (defaultPath, title) =>
+      ipcRenderer.invoke(IPC.filesShowSaveDialog, defaultPath, title),
+    choose: (kind, title) => ipcRenderer.invoke(IPC.filesChoose, kind, title),
+    chooseFolder: (defaultPath, title) =>
+      ipcRenderer.invoke(IPC.filesChooseFolder, defaultPath, title),
+    showInFolder: (path) => ipcRenderer.send(IPC.filesShowInFolder, path),
     pathForFile: (file) => {
       try {
         return webUtils.getPathForFile(file)

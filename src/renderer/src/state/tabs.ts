@@ -211,6 +211,29 @@ export const useTabs = create<TabsState>((set, get) => {
 
     applyMutation: (id, result) =>
       update(id, (tab) => {
+        if (result.structure) {
+          // Pages were reordered, added or removed: every index may now be a
+          // different page, so everything per page starts afresh.
+          const pages: PageInfo[] = new Array(result.pageCount)
+          for (const page of result.pages) {
+            pages[page.index] = { width: page.width, height: page.height, rotation: page.rotation }
+          }
+          for (let index = 0; index < pages.length; index++) {
+            pages[index] ??= tab.pages[index] ?? tab.pages[tab.pages.length - 1]
+          }
+          return {
+            ...tab,
+            revision: result.revision,
+            pageCount: result.pageCount,
+            pages,
+            pageRevisions: pages.map(() => result.revision),
+            history: historyOf(result),
+            selectedAnnotation: null,
+            page: clampPage(tab.page, result.pageCount),
+            search: { ...tab.search, status: 'idle', hits: [], truncated: false, activeIndex: -1 },
+            outline: null
+          }
+        }
         const pages = tab.pages.slice()
         const pageRevisions = tab.pageRevisions.slice()
         for (const changed of result.pages ?? []) {

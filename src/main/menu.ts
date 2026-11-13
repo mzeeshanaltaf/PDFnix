@@ -196,6 +196,26 @@ export function buildMenu(): void {
     },
     { label: '&View', submenu: view },
     {
+      label: '&Document',
+      submenu: [
+        command('Organise Pages…', 'document.organise', 'CmdOrCtrl+Shift+O'),
+        command('Insert Blank Page', 'document.insertBlank'),
+        command('Insert Pages from File…', 'document.insertFromFile'),
+        command('Extract Pages…', 'document.extract'),
+        { type: 'separator' },
+        command('Split Document…', 'document.split'),
+        command('Merge Files…', 'document.merge', undefined, { needsDocument: false }),
+        { type: 'separator' },
+        command('Highlight Form Fields', 'forms.highlight'),
+        command('Reset Form', 'forms.reset'),
+        command('Flatten Form…', 'forms.flatten'),
+        { type: 'separator' },
+        command('Redact…', 'document.redact', 'CmdOrCtrl+Shift+X'),
+        command('Watermark…', 'document.watermark'),
+        command('Header and Footer…', 'document.headerFooter')
+      ]
+    },
+    {
       label: '&Tools',
       submenu: [
         command('Select', 'tools.select', 'V'),
@@ -219,10 +239,7 @@ export function buildMenu(): void {
           needsDocument: false
         }),
         { type: 'separator' },
-        placeholder('Organise Pages…'),
-        placeholder('Fill Form'),
-        placeholder('Redact…'),
-        placeholder('Watermark…'),
+        command('Mark for Redaction', 'tools.redact', 'R'),
         { type: 'separator' },
         placeholder('Compress…'),
         placeholder('Protect with Password…'),

@@ -3,8 +3,19 @@
  * run the same ones through `runCommand`.
  */
 
+import { toast } from 'sonner'
 import type { MenuCommand } from '../../../shared/api'
-import { showPreferences, showProperties } from '@/state/dialogs'
+import {
+  askPageRange,
+  confirmAction,
+  showMerge,
+  showPreferences,
+  showProperties,
+  showToolDialog
+} from '@/state/dialogs'
+import { commitFormInput, flattenForm, resetForm, useForms } from '@/state/forms'
+import { extractPages, insertBlank, insertFromFile } from '@/state/pageOps'
+import { redactCommand } from '@/state/redaction'
 import { closeTab, openWithDialog, saveTab, stepSearch } from '@/state/documents'
 import {
   deleteSelected,
@@ -62,6 +73,51 @@ function markupCommand(tabId: string, kind: MarkupType): void {
   else toggleTool(kind)
 }
 
+/** Commits a pending object and sends form values typed but not yet sent. */
+export async function commitAll(tabId: string): Promise<void> {
+  await commitPending()
+  await commitFormInput(tabId)
+}
+
+function formFieldsOf(tabId: string): number {
+  const fields = useForms.getState().fields[tabId]?.fields ?? []
+  return fields.filter((field) => !field.flags.readOnly && field.type !== 'signature').length
+}
+
+function toggleFieldHighlight(tabId: string): void {
+  if (formFieldsOf(tabId) === 0) {
+    toast.info('This document has no form fields')
+    return
+  }
+  const forms = useForms.getState()
+  forms.setHighlight(!forms.highlight)
+}
+
+/** Reset or flatten the form, after asking. */
+export async function confirmFormAction(tabId: string, action: 'reset' | 'flatten'): Promise<void> {
+  if (formFieldsOf(tabId) === 0) {
+    toast.info('This document has no form fields')
+    return
+  }
+  const yes = await confirmAction(
+    action === 'reset'
+      ? {
+          title: 'Reset the form?',
+          message: 'Every field goes back to its default value, usually empty. You can undo this.',
+          confirmLabel: 'Reset form'
+        }
+      : {
+          title: 'Flatten the form?',
+          message:
+            'The fields become part of the page: their values stay visible but can no longer be changed in any program. You can undo this until you close the document.',
+          confirmLabel: 'Flatten form'
+        }
+  )
+  if (!yes) return
+  if (action === 'reset') await resetForm(tabId)
+  else await flattenForm(tabId)
+}
+
 export function runCommand(command: CommandId): void {
   if (command === 'file.open') {
     void openWithDialog()
@@ -83,6 +139,10 @@ export function runCommand(command: CommandId): void {
     useSignatures.getState().showDialog('signature')
     return
   }
+  if (command === 'document.merge') {
+    showMerge(true)
+    return
+  }
 
   // Everything else acts on the open document.
   const tab = getActiveTab()
@@ -91,15 +151,58 @@ export function runCommand(command: CommandId): void {
   const store = useTabs.getState()
 
   switch (command) {
-    // Whatever is being placed becomes part of the document first.
+    // Whatever is being placed or typed into a form becomes part of the
+    // document first.
     case 'file.save':
-      void commitPending().then(() => saveTab(tab.id))
+      void commitAll(tab.id).then(() => saveTab(tab.id))
       break
     case 'file.saveAs':
-      void commitPending().then(() => saveTab(tab.id, true))
+      void commitAll(tab.id).then(() => saveTab(tab.id, true))
       break
     case 'file.closeTab':
-      void commitPending().then(() => closeTab(tab.id))
+      void commitAll(tab.id).then(() => closeTab(tab.id))
+      break
+    case 'tools.redact':
+      redactCommand(tab.id)
+      break
+    case 'document.organise':
+      showToolDialog('organiseTabId', tab.id)
+      break
+    case 'document.insertBlank':
+      void insertBlank(tab.id, tab.page + 1)
+      break
+    case 'document.insertFromFile':
+      void insertFromFile(tab.id, tab.page + 1)
+      break
+    case 'document.extract':
+      void askPageRange({
+        title: 'Extract Pages',
+        description: 'The pages are written to a new PDF file; this document is not changed.',
+        initial: String(tab.page + 1),
+        pageCount: tab.pageCount,
+        confirmLabel: 'Extract…'
+      }).then((pages) => pages && extractPages(tab.id, pages))
+      break
+    case 'document.split':
+      showToolDialog('splitTabId', tab.id)
+      break
+    case 'document.redact':
+      showToolDialog('redactTabId', tab.id)
+      break
+    case 'document.watermark':
+      showToolDialog('watermarkTabId', tab.id)
+      break
+    case 'document.headerFooter':
+      showToolDialog('headerFooterTabId', tab.id)
+      break
+    case 'forms.highlight':
+      toggleFieldHighlight(tab.id)
+      break
+    case 'forms.reset':
+      void confirmFormAction(tab.id, 'reset')
+      break
+    case 'forms.flatten':
+      void confirmFormAction(tab.id, 'flatten')
       break
     case 'file.properties':
       showProperties(tab.id)

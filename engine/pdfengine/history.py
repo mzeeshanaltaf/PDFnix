@@ -44,6 +44,9 @@ class Step:
     name: str
     #: 0-based indexes of the pages whose image or text the change affects.
     pages: set[int] = field(default_factory=set)
+    #: True if the change reorders, adds or removes pages. Page indexes then
+    #: mean different pages before and after, so the app reloads every page.
+    structure: bool = False
 
 
 class History:

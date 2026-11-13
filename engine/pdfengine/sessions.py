@@ -134,21 +134,42 @@ class Session:
         with self.lock:
             return {"revision": self.revision, **self.history.state()}
 
-    def mutated(self, dirty_pages: set[int] | list[int]) -> dict[str, Any]:
+    def mutated(
+        self, dirty_pages: set[int] | list[int], *, structure: bool = False
+    ) -> dict[str, Any]:
         """Records a change and returns the standard mutation response:
         ``revision``, ``dirtyPages``, ``pageCount``, ``pages`` (size and
-        rotation of each dirty page) and the undo/redo state."""
+        rotation of each dirty page), ``structure`` and the undo/redo state.
+
+        ``structure`` means pages were reordered, added or removed: every page
+        is then dirty and ``pages`` lists all of them."""
         with self.lock:
             self.revision += 1
             if self.unrecovered_since is None:
                 self.unrecovered_since = time.monotonic()
             doc = self.doc
-            dirty = sorted(index for index in set(dirty_pages) if 0 <= index < doc.page_count)
+            if structure:
+                dirty = list(range(doc.page_count))
+            else:
+                dirty = sorted(index for index in set(dirty_pages) if 0 <= index < doc.page_count)
             return {
                 "revision": self.revision,
                 "dirtyPages": dirty,
                 "pageCount": doc.page_count,
                 "pages": [{"index": index, **page_info(doc[index])} for index in dirty],
+                "structure": structure,
+                **self.history.state(),
+            }
+
+    def unchanged(self) -> dict[str, Any]:
+        """The mutation response for a request that changed nothing."""
+        with self.lock:
+            return {
+                "revision": self.revision,
+                "dirtyPages": [],
+                "pageCount": self.page_count,
+                "pages": [],
+                "structure": False,
                 **self.history.state(),
             }
 

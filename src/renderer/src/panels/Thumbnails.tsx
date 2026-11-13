@@ -1,10 +1,13 @@
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { cn } from 'cn'
+import { Maximize2, Shuffle } from 'lucide-react'
 import type { PageInfo } from '@/api/engine'
+import { showToolDialog } from '@/state/dialogs'
 import type { DocumentTab } from '@/state/tabs'
 import { getViewer } from '@/viewer/controller'
 import { useDevicePixelRatio, usePageImage } from '@/viewer/hooks'
 import { IMAGE_PRIORITY } from '@/viewer/pageImages'
+import { PageOrganiser } from './PageOrganiser'
 import { VirtualList } from './VirtualList'
 
 /** The box a thumbnail is fitted into, in CSS pixels. */
@@ -79,6 +82,52 @@ const Thumbnail = memo(function Thumbnail({
     </button>
   )
 })
+
+/**
+ * The Pages panel: thumbnails to jump with, or, in Organise mode, the page
+ * organiser (select, drag to reorder, delete, context menu). The full-window
+ * organiser opens from here too.
+ */
+export function ThumbnailsPanel({ tab }: { tab: DocumentTab }): React.JSX.Element {
+  const [organising, setOrganising] = useState(false)
+  return (
+    <>
+      <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1">
+        <button
+          type="button"
+          aria-pressed={organising}
+          onClick={() => setOrganising((on) => !on)}
+          className={cn(
+            'flex h-7 items-center gap-1.5 rounded-md px-2 text-xs',
+            organising ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
+          )}
+          title="Select, reorder and delete pages here"
+        >
+          <Shuffle className="size-3.5" aria-hidden />
+          Organise
+        </button>
+        <button
+          type="button"
+          onClick={() => showToolDialog('organiseTabId', tab.id)}
+          className="ml-auto flex size-7 items-center justify-center rounded-md hover:bg-accent"
+          title="Organise pages in a full window (Ctrl+Shift+O)"
+          aria-label="Organise pages in a full window"
+        >
+          <Maximize2 className="size-3.5" aria-hidden />
+        </button>
+      </div>
+      {organising ? (
+        <PageOrganiser
+          tab={tab}
+          layout="list"
+          onOpenPage={(index) => getViewer(tab.id)?.goToPage(index)}
+        />
+      ) : (
+        <Thumbnails tab={tab} />
+      )}
+    </>
+  )
+}
 
 /** Small images of every page. The current page is marked; a click jumps to a page. */
 export function Thumbnails({ tab }: { tab: DocumentTab }): React.JSX.Element {

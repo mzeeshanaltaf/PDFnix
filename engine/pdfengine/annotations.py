@@ -59,8 +59,14 @@ _TYPE_NAMES = {
     pymupdf.PDF_ANNOT_REDACT: "redact",
 }
 #: Not shown or edited as annotations: pop-ups belong to their parent, form
-#: fields are phase 5's, links are not annotations to the user.
-_HIDDEN = {pymupdf.PDF_ANNOT_POPUP, pymupdf.PDF_ANNOT_WIDGET, pymupdf.PDF_ANNOT_LINK}
+#: fields (``forms.py``) and redaction marks (``redact.py``) have their own
+#: tools, links are not annotations to the user.
+_HIDDEN = {
+    pymupdf.PDF_ANNOT_POPUP,
+    pymupdf.PDF_ANNOT_WIDGET,
+    pymupdf.PDF_ANNOT_LINK,
+    pymupdf.PDF_ANNOT_REDACT,
+}
 #: Annotation types that follow text and have quads.
 _TEXT_MARKUP = {
     pymupdf.PDF_ANNOT_HIGHLIGHT,

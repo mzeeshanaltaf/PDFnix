@@ -1,6 +1,6 @@
-import { BrowserWindow, dialog } from 'electron'
+import { BrowserWindow, dialog, shell } from 'electron'
 import { existsSync, statSync } from 'fs'
-import { IPC, type RecentFile } from '../shared/api'
+import { IPC, type FileChoice, type RecentFile } from '../shared/api'
 import {
   addToRecent,
   pdfPathsFromArgv,
@@ -94,10 +94,55 @@ export async function showOpenDialog(): Promise<string[]> {
   return result.canceled ? [] : result.filePaths
 }
 
+/** Open dialog for one PDF, several PDFs or one picture. */
+export async function chooseFiles(kind: FileChoice, title: unknown): Promise<string[]> {
+  const filters: Electron.FileFilter[] =
+    kind === 'image'
+      ? [{ name: 'Pictures (PNG, JPEG)', extensions: ['png', 'jpg', 'jpeg'] }]
+      : [{ name: 'PDF documents', extensions: ['pdf'] }]
+  const options: Electron.OpenDialogOptions = {
+    title:
+      typeof title === 'string' && title
+        ? title
+        : kind === 'image'
+          ? 'Choose Picture'
+          : 'Choose PDF',
+    properties: kind === 'pdfs' ? ['openFile', 'multiSelections'] : ['openFile'],
+    filters: [...filters, { name: 'All files', extensions: ['*'] }]
+  }
+  const window = getWindow()
+  const result = window
+    ? await dialog.showOpenDialog(window, options)
+    : await dialog.showOpenDialog(options)
+  return result.canceled ? [] : result.filePaths
+}
+
+/** Folder picker. Null if the user cancelled. */
+export async function chooseFolder(defaultPath: unknown, title: unknown): Promise<string | null> {
+  const options: Electron.OpenDialogOptions = {
+    title: typeof title === 'string' && title ? title : 'Choose Folder',
+    defaultPath: typeof defaultPath === 'string' && defaultPath ? defaultPath : undefined,
+    properties: ['openDirectory', 'createDirectory']
+  }
+  const window = getWindow()
+  const result = window
+    ? await dialog.showOpenDialog(window, options)
+    : await dialog.showOpenDialog(options)
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+}
+
+/** Shows a written file in Explorer. Only existing files. */
+export function showInFolder(path: unknown): void {
+  if (typeof path === 'string' && existsSync(path)) shell.showItemInFolder(path)
+}
+
 /** Save As: where to write the document. Null if the user cancelled. */
-export async function showSaveDialog(defaultPath: unknown): Promise<string | null> {
+export async function showSaveDialog(
+  defaultPath: unknown,
+  title?: unknown
+): Promise<string | null> {
   const options: Electron.SaveDialogOptions = {
-    title: 'Save As',
+    title: typeof title === 'string' && title ? title : 'Save As',
     defaultPath: typeof defaultPath === 'string' ? defaultPath : undefined,
     filters: [{ name: 'PDF documents', extensions: ['pdf'] }],
     properties: ['showOverwriteConfirmation']
