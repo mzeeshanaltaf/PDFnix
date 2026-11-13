@@ -33,6 +33,36 @@ class NotFoundError(EngineError):
         super().__init__("not_found", message, 404)
 
 
+class BadRequestError(EngineError):
+    def __init__(self, message: str) -> None:
+        super().__init__("bad_request", message, 400)
+
+
+class FileNotFound(EngineError):
+    def __init__(self, path: str) -> None:
+        super().__init__("file_not_found", f"The file does not exist: {path}", 404)
+
+
+class FileUnreadableError(EngineError):
+    def __init__(self, path: str, reason: str) -> None:
+        super().__init__("file_unreadable", f"The file could not be read: {path} ({reason})", 403)
+
+
+class InvalidPdfError(EngineError):
+    def __init__(self, message: str = "The file is not a PDF or is damaged.") -> None:
+        super().__init__("invalid_pdf", message, 422)
+
+
+class PasswordRequiredError(EngineError):
+    def __init__(self) -> None:
+        super().__init__("password_required", "This document needs a password.", 401)
+
+
+class PasswordIncorrectError(EngineError):
+    def __init__(self) -> None:
+        super().__init__("password_incorrect", "The password is not correct.", 401)
+
+
 _STATUS_CODES = {
     400: "bad_request",
     401: "unauthorized",

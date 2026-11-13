@@ -1,10 +1,54 @@
 import { app, dialog, Menu, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
-import type { ThemeSource } from '../shared/api'
+import {
+  IPC,
+  type LayoutMode,
+  type MenuCommand,
+  type MenuState,
+  type ThemeSource
+} from '../shared/api'
+import { clearRecent, listRecent, openFiles, openWithDialog } from './files'
 import { changeTheme, currentTheme } from './theme'
+
+let getWindow: () => BrowserWindow | null = () => null
+let state: MenuState = { hasDocument: false, layout: null }
 
 /** A menu entry that exists but is not implemented yet. */
 function placeholder(label: string, accelerator?: string): MenuItemConstructorOptions {
-  return { label, accelerator, enabled: false }
+  return { label, accelerator, enabled: false, registerAccelerator: false }
+}
+
+/**
+ * An entry that runs a command in the renderer.
+ *
+ * The shortcut is shown but not registered: the renderer handles the keyboard
+ * itself (src/renderer/src/shell/shortcuts.ts), so a key press never runs a
+ * command twice.
+ */
+function command(
+  label: string,
+  id: MenuCommand,
+  accelerator?: string,
+  options: { needsDocument?: boolean } = {}
+): MenuItemConstructorOptions {
+  const { needsDocument = true } = options
+  return {
+    label,
+    accelerator,
+    registerAccelerator: false,
+    enabled: !needsDocument || state.hasDocument,
+    click: () => {
+      const window = getWindow()
+      if (window && !window.isDestroyed()) window.webContents.send(IPC.menuCommand, id)
+    }
+  }
+}
+
+function layoutItem(label: string, layout: LayoutMode): MenuItemConstructorOptions {
+  return {
+    ...command(label, `view.layout.${layout}`),
+    type: 'radio',
+    checked: state.layout === layout
+  }
 }
 
 function themeItem(label: string, theme: ThemeSource): MenuItemConstructorOptions {
@@ -16,6 +60,20 @@ function themeItem(label: string, theme: ThemeSource): MenuItemConstructorOption
       changeTheme(theme)
     }
   }
+}
+
+function recentItems(): MenuItemConstructorOptions[] {
+  const recent = listRecent()
+  if (recent.length === 0) return [{ label: 'No Recent Files', enabled: false }]
+  return [
+    ...recent.map((file, index): MenuItemConstructorOptions => ({
+      // An ampersand would otherwise be read as a keyboard mnemonic.
+      label: `${index < 9 ? `&${index + 1}  ` : ''}${file.path.replace(/&/g, '&&')}`,
+      click: () => openFiles([file.path])
+    })),
+    { type: 'separator' },
+    { label: 'Clear Recent Files', click: () => clearRecent() }
+  ]
 }
 
 function showAbout(window: BrowserWindow | null): void {
@@ -40,18 +98,35 @@ function showAbout(window: BrowserWindow | null): void {
  * Builds the application menu. Entries for features that later phases
  * implement are present but disabled.
  */
-export function buildMenu(getWindow: () => BrowserWindow | null): void {
+export function buildMenu(): void {
   const view: MenuItemConstructorOptions[] = [
-    placeholder('Zoom In', 'CmdOrCtrl+Plus'),
-    placeholder('Zoom Out', 'CmdOrCtrl+-'),
-    placeholder('Actual Size', 'CmdOrCtrl+0'),
-    placeholder('Fit Width'),
-    placeholder('Fit Page'),
+    command('Zoom In', 'view.zoomIn', 'CmdOrCtrl+Plus'),
+    command('Zoom Out', 'view.zoomOut', 'CmdOrCtrl+-'),
+    command('Actual Size', 'view.actualSize', 'CmdOrCtrl+0'),
+    command('Fit Width', 'view.fitWidth', 'CmdOrCtrl+1'),
+    command('Fit Page', 'view.fitPage', 'CmdOrCtrl+2'),
     { type: 'separator' },
-    placeholder('Rotate Clockwise', 'CmdOrCtrl+R'),
-    placeholder('Rotate Counterclockwise', 'CmdOrCtrl+Shift+R'),
+    {
+      label: 'Page Layout',
+      enabled: state.hasDocument,
+      submenu: [
+        layoutItem('Continuous', 'continuous'),
+        layoutItem('Single Page', 'single'),
+        layoutItem('Two Pages', 'two-page')
+      ]
+    },
     { type: 'separator' },
-    placeholder('Side Panel', 'F4'),
+    command('Rotate Page Clockwise', 'view.rotateCw', 'CmdOrCtrl+R'),
+    command('Rotate Page Counterclockwise', 'view.rotateCcw', 'CmdOrCtrl+Shift+R'),
+    command('Rotate All Pages Clockwise', 'view.rotateAllCw'),
+    command('Rotate All Pages Counterclockwise', 'view.rotateAllCcw'),
+    { type: 'separator' },
+    command('Next Page', 'go.nextPage', 'Right'),
+    command('Previous Page', 'go.previousPage', 'Left'),
+    command('First Page', 'go.firstPage', 'CmdOrCtrl+Home'),
+    command('Last Page', 'go.lastPage', 'CmdOrCtrl+End'),
+    { type: 'separator' },
+    command('Side Panel', 'view.toggleSidePanel', 'F4'),
     { type: 'separator' },
     {
       label: 'Theme',
@@ -75,15 +150,22 @@ export function buildMenu(getWindow: () => BrowserWindow | null): void {
     {
       label: '&File',
       submenu: [
-        placeholder('Open…', 'CmdOrCtrl+O'),
-        placeholder('Open Recent'),
+        {
+          label: 'Open…',
+          accelerator: 'CmdOrCtrl+O',
+          registerAccelerator: false,
+          click: () => void openWithDialog()
+        },
+        { label: 'Open Recent', submenu: recentItems() },
         { type: 'separator' },
         placeholder('Save', 'CmdOrCtrl+S'),
         placeholder('Save As…', 'CmdOrCtrl+Shift+S'),
         { type: 'separator' },
         placeholder('Print…', 'CmdOrCtrl+P'),
         { type: 'separator' },
-        placeholder('Close Tab', 'CmdOrCtrl+W'),
+        command('Properties…', 'file.properties', 'CmdOrCtrl+D'),
+        { type: 'separator' },
+        command('Close Tab', 'file.closeTab', 'CmdOrCtrl+W'),
         { label: 'Exit', role: 'quit' }
       ]
     },
@@ -93,13 +175,17 @@ export function buildMenu(getWindow: () => BrowserWindow | null): void {
         placeholder('Undo', 'CmdOrCtrl+Z'),
         placeholder('Redo', 'CmdOrCtrl+Y'),
         { type: 'separator' },
-        placeholder('Cut', 'CmdOrCtrl+X'),
-        placeholder('Copy', 'CmdOrCtrl+C'),
-        placeholder('Paste', 'CmdOrCtrl+V'),
+        // These act on whatever has the focus: a text box, or text selected
+        // on a page.
+        { label: 'Cut', role: 'cut' },
+        { label: 'Copy', role: 'copy' },
+        { label: 'Paste', role: 'paste' },
         placeholder('Delete', 'Delete'),
-        placeholder('Select All', 'CmdOrCtrl+A'),
+        { label: 'Select All', role: 'selectAll' },
         { type: 'separator' },
-        placeholder('Find…', 'CmdOrCtrl+F')
+        command('Find…', 'edit.find', 'CmdOrCtrl+F'),
+        command('Find Next', 'edit.findNext', 'F3'),
+        command('Find Previous', 'edit.findPrevious', 'Shift+F3')
       ]
     },
     { label: '&View', submenu: view },
@@ -124,4 +210,16 @@ export function buildMenu(getWindow: () => BrowserWindow | null): void {
   ]
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+export function initMenu(windowGetter: () => BrowserWindow | null): void {
+  getWindow = windowGetter
+  buildMenu()
+}
+
+/** The renderer reports what is open; entries are enabled and checked to match. */
+export function setMenuState(next: MenuState): void {
+  if (next.hasDocument === state.hasDocument && next.layout === state.layout) return
+  state = next
+  buildMenu()
 }

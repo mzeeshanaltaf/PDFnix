@@ -1,8 +1,9 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
 import { join } from 'path'
 import { EngineManager, type EngineStartError } from './engine'
+import { initFiles, onRecentChanged, openFromArgv, rendererIsLoading } from './files'
 import { registerIpc } from './ipc'
-import { buildMenu } from './menu'
+import { buildMenu, initMenu } from './menu'
 import { applySavedTheme, onThemeChanged, windowBackground } from './theme'
 
 const APP_ID = 'com.pdfnix.app'
@@ -55,6 +56,9 @@ function createWindow(): BrowserWindow {
   window.webContents.on('will-navigate', (event, url) => {
     if (url !== window.webContents.getURL()) event.preventDefault()
   })
+  // While the page (re)loads it cannot take open requests; they are queued
+  // until it asks for them.
+  window.webContents.on('did-start-loading', rendererIsLoading)
 
   if (DEV_RENDERER_URL) {
     void window.loadURL(DEV_RENDERER_URL)
@@ -100,9 +104,12 @@ async function showEngineFailure(error: EngineStartError): Promise<void> {
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  // A second launch focuses the existing window. Handing over a file path
-  // from the second launch is added in phase 2.
-  app.on('second-instance', focusMainWindow)
+  // A second launch focuses the existing window and hands over the files it
+  // was started with.
+  app.on('second-instance', (_event, argv, workingDirectory) => {
+    focusMainWindow()
+    openFromArgv(argv, workingDirectory)
+  })
 
   app.on('before-quit', () => engine.stop())
   // Last resort if the app exits without the normal quit sequence.
@@ -114,13 +121,18 @@ if (!app.requestSingleInstanceLock()) {
     app.setAppUserModelId(app.isPackaged ? APP_ID : process.execPath)
 
     applySavedTheme()
+    initFiles(() => mainWindow)
     registerIpc(engine)
-    buildMenu(() => mainWindow)
-    onThemeChanged(() => buildMenu(() => mainWindow))
+    initMenu(() => mainWindow)
+    onThemeChanged(buildMenu)
+    onRecentChanged(buildMenu)
 
     engine.on('failed', (error) => void showEngineFailure(error))
 
     mainWindow = createWindow()
     void engine.start().catch(() => {})
+
+    // Files named on the command line wait until the renderer asks for them.
+    openFromArgv(process.argv, process.cwd())
   })
 }

@@ -13,13 +13,19 @@ interface EngineState {
   message: string | null
   /** Unexpected engine exits recovered from since the app started. */
   restarts: number
+  /**
+   * Which engine process we are connected to; it increases with every new
+   * one. A new process knows nothing of the documents the old one had open.
+   */
+  generation: number
 }
 
 export const useEngine = create<EngineState>(() => ({
   link: 'connecting',
   health: null,
   message: null,
-  restarts: 0
+  restarts: 0,
+  generation: 0
 }))
 
 /**
@@ -76,7 +82,13 @@ export function startEngineMonitor(): () => void {
     try {
       const health = await engine.health()
       if (!isCurrent()) return
-      useEngine.setState({ link: 'connected', health, message: null, restarts: status.restarts })
+      useEngine.setState({
+        link: 'connected',
+        health,
+        message: null,
+        restarts: status.restarts,
+        generation: status.generation
+      })
       if (previous.link === 'reconnecting' || previous.link === 'failed') {
         toast.success('The PDF engine is running again', {
           id: 'engine',

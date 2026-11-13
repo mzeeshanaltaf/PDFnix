@@ -4,6 +4,8 @@
 
 **Depends on:** phases 1–2. Conventions are in [phase-1-foundation.md](phase-1-foundation.md).
 
+**From phase 2** (details in STATUS.md): `page` is a 0-based index in every endpoint. Mutations go through `Session.mutated` in `engine/pdfengine/sessions.py` under the process-wide PyMuPDF lock, and the renderer applies the result with `applyMutation` in `state/tabs.ts`. The renderer currently turns search hits itself when a page is rotated; once rotation is undoable, re-run the search after an undo or redo instead.
+
 ## Scope
 
 Included: highlight, underline, strikeout; sticky notes; comments on any annotation; comments panel; select, move, recolour and delete annotations; undo/redo; Save, Save As; unsaved-changes handling; crash recovery copy.

@@ -35,6 +35,8 @@
   --status-ok: oklch(0.6 0.15 155);
   --status-busy: oklch(0.72 0.16 75);
   --status-error: oklch(0.6 0.22 27);
+  --search-hit: oklch(0.9 0.16 98);
+  --search-hit-foreground: oklch(0.25 0.03 90);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -94,6 +96,8 @@
   --color-status-ok: var(--status-ok);
   --color-status-busy: var(--status-busy);
   --color-status-error: var(--status-error);
+  --color-search-hit: var(--search-hit);
+  --color-search-hit-foreground: var(--search-hit-foreground);
 }
 
 @layer base {
@@ -113,5 +117,109 @@
     /* Application chrome behaves like a desktop app, not a web page. */
     user-select: none;
     cursor: default;
+  }
+
+  input,
+  textarea {
+    user-select: text;
+    cursor: text;
+  }
+}
+
+/*
+ * The viewer. Pages are white paper in both themes: a page shows what the
+ * document looks like, not what the app looks like.
+ */
+@layer components {
+  .pdf-scroller {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+    /* The vertical scrollbar is always there, so "fit width" has a fixed width to fit. */
+    overflow-y: scroll;
+    outline: none;
+    /* The viewer keeps its own place when the layout changes. */
+    overflow-anchor: none;
+  }
+
+  .pdf-page {
+    position: absolute;
+    overflow: hidden;
+    background: #fff;
+    box-shadow:
+      0 0 0 1px rgb(0 0 0 / 0.08),
+      0 1px 4px rgb(0 0 0 / 0.14);
+  }
+
+  .pdf-page > img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    /* An image shown pixel for pixel may be a fraction wider than the page box. */
+    max-width: none;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .pdf-search-hit {
+    position: absolute;
+    border-radius: 2px;
+    background: rgb(255 221 51 / 0.45);
+    mix-blend-mode: multiply;
+  }
+
+  .pdf-search-hit.active {
+    background: rgb(255 150 30 / 0.55);
+    outline: 2px solid rgb(234 88 12 / 0.85);
+    outline-offset: 1px;
+  }
+
+  /*
+   * The text layer: invisible text over the page image, there to be selected.
+   * It is laid out in points and scaled to the zoom by a transform.
+   */
+  .pdf-text-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    color: transparent;
+    line-height: 1;
+    user-select: text;
+    cursor: text;
+    forced-color-adjust: none;
+    text-size-adjust: none;
+  }
+
+  .pdf-text-layer > span {
+    position: absolute;
+    z-index: 1;
+    white-space: pre;
+    transform-origin: 0 0;
+    cursor: text;
+  }
+
+  .pdf-text-layer ::selection {
+    background: rgb(0 96 223 / 0.3);
+    color: transparent;
+  }
+
+  /* See viewer/selection.ts for what this element is for. */
+  .pdf-text-layer > .end-of-content {
+    position: absolute;
+    inset: 100% 0 0;
+    z-index: 0;
+    display: block;
+    cursor: default;
+    user-select: none;
+  }
+
+  .pdf-text-layer.selecting > .end-of-content {
+    top: 0;
+  }
+
+  .tab-strip {
+    scrollbar-width: none;
   }
 }

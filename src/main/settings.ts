@@ -3,9 +3,11 @@ import { isThemeSource, type ThemeSource } from '../shared/api'
 
 interface SettingsSchema {
   theme: ThemeSource
+  /** Absolute paths, most recent first. */
+  recentFiles: string[]
 }
 
-const DEFAULTS: SettingsSchema = { theme: 'system' }
+const DEFAULTS: SettingsSchema = { theme: 'system', recentFiles: [] }
 
 let store: Store<SettingsSchema> | null = null
 
@@ -26,4 +28,14 @@ export function getTheme(): ThemeSource {
 
 export function setTheme(theme: ThemeSource): void {
   getStore().set('theme', theme)
+}
+
+export function getRecentFiles(): string[] {
+  const value: unknown = getStore().get('recentFiles')
+  if (!Array.isArray(value)) return []
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+}
+
+export function setRecentFiles(paths: string[]): void {
+  getStore().set('recentFiles', paths)
 }

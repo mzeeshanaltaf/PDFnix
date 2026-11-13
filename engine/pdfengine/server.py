@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
+from .api import build_router
 from .errors import UnauthorizedError, install_error_handlers
 from .sessions import SessionRegistry
 
@@ -67,5 +68,6 @@ def create_app(token: str, allowed_origins: list[str] | None = None) -> FastAPI:
             "openDocuments": len(app.state.sessions),
         }
 
+    v1.include_router(build_router(app.state.sessions))
     app.include_router(v1)
     return app

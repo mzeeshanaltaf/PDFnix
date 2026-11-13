@@ -1,65 +1,76 @@
-import { LayoutGrid, ListTree, MessageSquareText, type LucideIcon } from 'lucide-react'
+import { LayoutGrid, ListTree, MessageSquareText, Search as SearchIcon } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { Outline } from '@/panels/Outline'
+import { Search } from '@/panels/Search'
+import { Thumbnails } from '@/panels/Thumbnails'
+import type { DocumentTab, SidePanelId } from '@/state/tabs'
+import { openSearch, setSidePanel } from './commands'
 import { ToolbarButton } from './ToolbarButton'
 
-export type SidePanelId = 'thumbnails' | 'outline' | 'annotations'
-
-const PANELS: { id: SidePanelId; label: string; icon: LucideIcon; empty: string }[] = [
-  {
-    id: 'thumbnails',
-    label: 'Pages',
-    icon: LayoutGrid,
-    empty: 'Page thumbnails appear here when a document is open.'
-  },
-  {
-    id: 'outline',
-    label: 'Outline',
-    icon: ListTree,
-    empty: 'The document outline appears here when a document has one.'
-  },
-  {
-    id: 'annotations',
-    label: 'Comments',
-    icon: MessageSquareText,
-    empty: 'Highlights and comments appear here once you add them.'
-  }
+const PANELS: { id: SidePanelId; label: string; icon: LucideIcon }[] = [
+  { id: 'thumbnails', label: 'Pages', icon: LayoutGrid },
+  { id: 'outline', label: 'Outline', icon: ListTree },
+  { id: 'search', label: 'Find', icon: SearchIcon },
+  { id: 'annotations', label: 'Comments', icon: MessageSquareText }
 ]
 
-interface SidePanelProps {
-  open: boolean
-  panel: SidePanelId
-  /** Called with the panel whose rail button was pressed. */
-  onSelect: (panel: SidePanelId) => void
+function PanelBody({ tab, panel }: { tab: DocumentTab; panel: SidePanelId }): React.JSX.Element {
+  switch (panel) {
+    case 'thumbnails':
+      return <Thumbnails tab={tab} />
+    case 'outline':
+      return <Outline tab={tab} />
+    case 'search':
+      return <Search tab={tab} />
+    default:
+      return (
+        <p className="px-3 py-4 text-[13px] leading-relaxed text-muted-foreground">
+          Highlights and comments appear here once you add them.
+        </p>
+      )
+  }
 }
 
 /**
  * The left side area: a narrow rail that is always visible and a panel that
- * is collapsed by default. The panels get their content in phase 2 and later.
+ * opens beside it. Which panel is open is remembered per tab.
  */
-export function SidePanel({ open, panel, onSelect }: SidePanelProps): React.JSX.Element {
-  const current = PANELS.find((item) => item.id === panel) ?? PANELS[0]
+export function SidePanel({ tab }: { tab: DocumentTab | null }): React.JSX.Element {
+  // A document without an outline does not get an Outline button.
+  const hasOutline = tab === null || tab.outline === null || tab.outline.length > 0
+  const panels = PANELS.filter((item) => item.id !== 'outline' || hasOutline)
+  const open = tab?.sidePanel.open ?? false
+  const wanted = tab?.sidePanel.panel ?? 'thumbnails'
+  const current = panels.find((item) => item.id === wanted) ?? panels[0]
+
+  const select = (panel: SidePanelId): void => {
+    if (!tab) return
+    if (open && panel === current.id) setSidePanel(tab.id, false)
+    else if (panel === 'search') openSearch(tab.id)
+    else setSidePanel(tab.id, true, panel)
+  }
 
   return (
     <aside aria-label="Side panel" className="flex shrink-0 border-r bg-background">
       <nav className="flex w-11 flex-col items-center gap-0.5 py-1.5">
-        {PANELS.map((item) => (
+        {panels.map((item) => (
           <ToolbarButton
             key={item.id}
             icon={item.icon}
             label={item.label}
-            active={open && item.id === panel}
-            onClick={() => onSelect(item.id)}
+            disabled={tab === null}
+            active={open && item.id === current.id}
+            onClick={() => select(item.id)}
             tooltipSide="right"
           />
         ))}
       </nav>
-      {open && (
-        <section aria-label={current.label} className="flex w-60 flex-col border-l">
+      {open && tab && (
+        <section aria-label={current.label} className="flex w-60 min-h-0 flex-col border-l">
           <h2 className="flex h-9 shrink-0 items-center border-b px-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {current.label}
           </h2>
-          <p className="px-3 py-4 text-[13px] leading-relaxed text-muted-foreground">
-            {current.empty}
-          </p>
+          <PanelBody key={tab.id} tab={tab} panel={current.id} />
         </section>
       )}
     </aside>
