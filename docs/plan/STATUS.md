@@ -2,7 +2,7 @@
 
 Single source of truth for where the project stands. Read fully at the start of every session; update during and at the end of every session. The protocol is in `CLAUDE.md` at the project root.
 
-**Last updated:** 2026-11-13 — phase 3 session (phase 3 complete; not yet committed)
+**Last updated:** 2026-11-13 — phase 3 session (phase 3 complete, committed and pushed)
 
 ## Phases
 
@@ -22,7 +22,7 @@ Status values: Not started · In progress · Complete · Complete with accepted 
 
 - **Current phase:** 4 — Content editing and signatures (not started)
 - **Next action:** in a new session, follow the start-of-session steps in `CLAUDE.md`, then begin phase 4 from [phase-4-content-editing-and-signatures.md](phase-4-content-editing-and-signatures.md). Read the phase 3 handoff note first, and the rules for edits added to the phase 3 plan under "Edit pipeline" ("Decided"): every phase 4 edit must follow them.
-- **Uncommitted work:** all of phase 3 is in the working tree, not yet committed (commit proposed to the user at the end of the phase 3 session). Phases 1 and 2 are committed on `main` and pushed to `origin` (https://github.com/mzeeshanaltaf/PDFnix.git). Ask before pushing later phases unless told otherwise.
+- **Uncommitted work:** none. Phases 1–3 are committed on `main` and pushed to `origin` (https://github.com/mzeeshanaltaf/PDFnix.git); the user asked for the phase 3 push. Ask before pushing later phases unless told otherwise.
 
 ## Current phase progress
 
