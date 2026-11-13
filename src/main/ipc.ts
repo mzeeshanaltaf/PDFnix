@@ -12,6 +12,13 @@ import {
 } from './files'
 import { setMenuState } from './menu'
 import { getUserSettings, setUserSettings } from './settings'
+import {
+  addSignature,
+  listSignatures,
+  removeSignature,
+  renameSignature,
+  setDefaultSignature
+} from './signatures'
 import { changeTheme, currentTheme } from './theme'
 
 function text(value: unknown): string | null {
@@ -84,6 +91,14 @@ export function registerIpc(engine: EngineManager, onConfirmClose: () => void): 
   ipcMain.handle(IPC.filesClearRecent, () => clearRecent())
 
   ipcMain.on(IPC.menuSetState, (_event, state: unknown) => setMenuState(toMenuState(state)))
+
+  ipcMain.handle(IPC.signaturesList, () => listSignatures())
+  ipcMain.handle(IPC.signaturesAdd, (_event, signature: unknown) => addSignature(signature))
+  ipcMain.handle(IPC.signaturesRename, (_event, id: unknown, name: unknown) =>
+    renameSignature(id, name)
+  )
+  ipcMain.handle(IPC.signaturesRemove, (_event, id: unknown) => removeSignature(id))
+  ipcMain.handle(IPC.signaturesSetDefault, (_event, id: unknown) => setDefaultSignature(id))
 
   engine.on('status', (status) => {
     for (const window of BrowserWindow.getAllWindows()) {

@@ -194,6 +194,11 @@ def test_background_writer_runs(recovery_dir, sample_pdf):
         doc_id = open_doc(client, sample_pdf)
         add_note(client, doc_id)
         deadline = time.monotonic() + 5
-        while not files(recovery_dir) and time.monotonic() < deadline:
+
+        # Wait for the finished pair, not the writer's temporary file.
+        def finished():
+            return [name for name in files(recovery_dir) if not name.endswith(".tmp")]
+
+        while len(finished()) < 2 and time.monotonic() < deadline:
             time.sleep(0.05)
-        assert len(files(recovery_dir)) == 2
+        assert len(finished()) == 2

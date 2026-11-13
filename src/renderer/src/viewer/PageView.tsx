@@ -2,6 +2,7 @@ import { memo, useState } from 'react'
 import { cn } from 'cn'
 import type { PageInfo, SearchHit } from '@/api/engine'
 import { AnnotationLayer } from './AnnotationLayer'
+import { EditLayer } from './EditLayer'
 import { cssScale, quadBounds, rectToPx, renderScale } from './geometry'
 import { usePageImage } from './hooks'
 import type { PageBox } from './layout'
@@ -131,6 +132,15 @@ export const PageView = memo(function PageView({
         width={page.width}
         height={page.height}
         selectedId={selectedAnnotId}
+      />
+      <EditLayer
+        tabId={tabId}
+        docId={docId}
+        page={box.index}
+        revision={revision}
+        zoom={zoom}
+        width={page.width}
+        height={page.height}
       />
     </div>
   )

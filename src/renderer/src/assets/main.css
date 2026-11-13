@@ -1,6 +1,32 @@
 ﻿@import 'tailwindcss';
 @import 'tw-animate-css';
 
+/* Handwriting fonts for typed signatures (SIL Open Font License, see assets/fonts). */
+@font-face {
+  font-family: 'Great Vibes';
+  src: url('./fonts/GreatVibes-Regular.ttf') format('truetype');
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Dancing Script';
+  src: url('./fonts/DancingScript-Variable.ttf') format('truetype');
+  font-weight: 400 700;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Allura';
+  src: url('./fonts/Allura-Regular.ttf') format('truetype');
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Sacramento';
+  src: url('./fonts/Sacramento-Regular.ttf') format('truetype');
+  font-display: block;
+}
+
 /*
  * Theme. Light and dark are selected by `prefers-color-scheme`, which the main
  * process controls through `nativeTheme.themeSource` (light / dark / follow
@@ -363,5 +389,222 @@
   .tool-note .pdf-text-layer > span {
     cursor: crosshair;
     user-select: none;
+  }
+
+  /*
+   * The edit layer (phase 4), above the annotation layer. While an edit tool
+   * is armed its surface takes the pointer; otherwise only the pending
+   * object's overlay does.
+   */
+  .pdf-edit-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    color: #262626;
+  }
+
+  .pdf-edit-surface {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  .pdf-edit-surface.tool-text {
+    cursor: text;
+  }
+
+  .pdf-edit-surface.tool-shape,
+  .pdf-edit-surface.tool-draw,
+  .pdf-edit-surface.tool-signature {
+    cursor: crosshair;
+  }
+
+  .pdf-edit-surface.tool-editText,
+  .pdf-edit-surface.tool-deleteObject {
+    cursor: pointer;
+  }
+
+  .pdf-edit-surface.tool-hand {
+    cursor: grab;
+  }
+
+  .pdf-edit-surface.tool-hand:active {
+    cursor: grabbing;
+  }
+
+  .tool-hand .pdf-text-layer > span,
+  .tool-text .pdf-text-layer > span,
+  .tool-shape .pdf-text-layer > span,
+  .tool-draw .pdf-text-layer > span {
+    user-select: none;
+  }
+
+  .pdf-edit-hover,
+  .pdf-edit-draft {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 2px;
+    outline: 1.5px dashed rgb(0 96 223 / 0.8);
+    outline-offset: 1px;
+    background: rgb(0 96 223 / 0.06);
+  }
+
+  .pdf-edit-hover.delete {
+    outline-color: rgb(220 38 38 / 0.85);
+    background: rgb(220 38 38 / 0.1);
+  }
+
+  .pdf-edit-overlay > * {
+    pointer-events: auto;
+  }
+
+  .pdf-edit-box {
+    position: absolute;
+    cursor: move;
+    outline: 1px solid rgb(0 96 223 / 0.85);
+    touch-action: none;
+  }
+
+  .pdf-edit-box.passive {
+    pointer-events: none;
+    outline-style: dashed;
+  }
+
+  .pdf-edit-box.typing {
+    cursor: default;
+  }
+
+  .pdf-shape-preview {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .pdf-image-preview {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    max-width: none;
+    pointer-events: none;
+  }
+
+  .pdf-text-editor {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    padding: 0;
+    border: 0;
+    margin: 0;
+    resize: none;
+    overflow: hidden;
+    outline: none;
+    background: rgb(255 255 255 / 0.55);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+
+  /* Over text being replaced: hide the original underneath. */
+  .pdf-text-editor.replacing {
+    background: #fff;
+    box-shadow: 0 0 0 3px #fff;
+  }
+
+  .pdf-handle {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    margin: -4.5px 0 0 -4.5px;
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: 0 0 0 1.5px rgb(0 96 223);
+    touch-action: none;
+  }
+
+  .pdf-handle-nw,
+  .pdf-handle-se {
+    cursor: nwse-resize;
+  }
+
+  .pdf-handle-ne,
+  .pdf-handle-sw {
+    cursor: nesw-resize;
+  }
+
+  .pdf-handle-n,
+  .pdf-handle-s {
+    cursor: ns-resize;
+  }
+
+  .pdf-handle-e,
+  .pdf-handle-w {
+    cursor: ew-resize;
+  }
+
+  .pdf-edit-layer > .pdf-edit-overlay > .pdf-handle:not([class*='pdf-handle-']) {
+    cursor: crosshair;
+  }
+
+  .pdf-properties-bar {
+    z-index: 1;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+
+  .pdf-swatch.small {
+    width: 15px;
+    height: 15px;
+  }
+
+  .pdf-annotation-button.pressed {
+    background: rgb(0 96 223 / 0.14);
+    color: rgb(0 70 170);
+  }
+
+  .pdf-color-input {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+  }
+
+  .pdf-bar-select,
+  .pdf-bar-number {
+    height: 24px;
+    padding: 0 4px;
+    border-radius: 5px;
+    border: 1px solid rgb(0 0 0 / 0.15);
+    background: #fff;
+    color: #171717;
+    font-size: 12px;
+  }
+
+  .pdf-bar-number {
+    width: 44px;
+  }
+
+  .pdf-no-fill {
+    display: block;
+    width: 15px;
+    height: 15px;
+    border-radius: 9999px;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.3);
+    background: linear-gradient(
+      135deg,
+      transparent 45%,
+      rgb(220 38 38) 45%,
+      rgb(220 38 38) 55%,
+      transparent 55%
+    );
+  }
+
+  /* Resize handles of a selected text box or shape (annotation layer). */
+  .pdf-annotation-layer > .pdf-handle {
+    z-index: 1;
   }
 }

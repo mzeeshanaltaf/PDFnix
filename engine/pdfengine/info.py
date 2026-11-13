@@ -26,6 +26,28 @@ _PERMISSIONS = {
 }
 
 
+def pdf_date(moment: datetime | None = None) -> str:
+    """A PDF date (``D:20261113154951+05'00'``) for ``moment``, by default now
+    in the local time zone.
+
+    PyMuPDF's ``get_pdf_now`` always applies the daylight-saving offset
+    (``time.altzone``), even when daylight saving is not in effect, so its
+    times are an hour off for half the year (or all year, where a zone defines
+    daylight saving it no longer uses). This one takes the offset that applies
+    at that moment.
+    """
+    local = (moment or datetime.now()).astimezone()
+    offset = local.utcoffset() or timedelta(0)
+    minutes = int(offset.total_seconds() // 60)
+    if minutes == 0:
+        zone = "Z"
+    else:
+        sign = "+" if minutes > 0 else "-"
+        minutes = abs(minutes)
+        zone = f"{sign}{minutes // 60:02d}'{minutes % 60:02d}'"
+    return local.strftime("D:%Y%m%d%H%M%S") + zone
+
+
 def parse_pdf_date(value: str | None) -> str | None:
     """Turns a PDF date (``D:20240131120000+01'00'``) into ISO 8601, or None."""
     if not value:

@@ -1,7 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import type { Annotation, PageText } from '@/api/engine'
+import type { Annotation, PageBlocks, PageText } from '@/api/engine'
+import { useTabs } from '@/state/tabs'
 import { pageImages, type PageImage } from './pageImages'
-import { pageAnnotations, pageTexts, type PageDataStore } from './pageText'
+import { pageAnnotations, pageBlocks, pageTexts, type PageDataStore } from './pageText'
 
 /** `value`, but only once it has stopped changing for `delay` milliseconds. */
 export function useSettled<T>(value: T, delay: number): T {
@@ -98,6 +99,16 @@ export function usePageText(
   return usePageData(pageTexts, docId, page, revision, enabled)
 }
 
+/** The page content's text blocks and images, or `null` while not loaded. */
+export function usePageBlocks(
+  docId: string,
+  page: number,
+  revision: number,
+  enabled: boolean
+): PageBlocks | null {
+  return usePageData(pageBlocks, docId, page, revision, enabled)
+}
+
 /** The annotations of a page, or `null` while they are not loaded. */
 export function usePageAnnotations(
   docId: string,
@@ -106,4 +117,9 @@ export function usePageAnnotations(
   enabled: boolean
 ): Annotation[] | null {
   return usePageData(pageAnnotations, docId, page, revision, enabled)
+}
+
+/** Pages of a tab, for the layer's page count. */
+export function usePageCount(tabId: string): number {
+  return useTabs((state) => state.tabs.find((tab) => tab.id === tabId)?.pageCount ?? 1)
 }

@@ -14,13 +14,22 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from .annotations import (
+    UNSET,
+    Align,
+    FontFamily,
+    ShapeStyle,
+    TextStyle,
+    create_freetext,
     create_markup,
     create_note,
+    create_shape,
     delete_annotation,
     list_annotations,
     update_annotation,
 )
+from .edit import decode_image, delete_object, insert_image, page_blocks, replace_text
 from .errors import BadRequestError
+from .fonts import list_fonts
 from .info import document_info, document_outline
 from .pages import rotate_pages
 from .recovery import RecoveryStore
@@ -61,13 +70,36 @@ Color = Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]
 
 
 class CreateAnnotationRequest(_Body):
-    type: Literal["highlight", "underline", "strikeout", "note"]
+    type: Literal[
+        "highlight", "underline", "strikeout", "note", "freetext", "square", "circle", "line", "ink"
+    ]
     page: int
     #: Text markup: quads in displayed space, ``[ulx, uly, urx, ury, llx, lly, lrx, lry]``.
     quads: list[list[float]] | None = None
     #: Note: where its top-left corner goes, displayed space.
     point: tuple[float, float] | None = None
+    #: Free text, square, circle: the box, displayed space.
+    rect: list[float] | None = None
+    #: Line: its two end points.
+    points: list[list[float]] | None = None
+    #: Ink: one list of points per stroke.
+    strokes: list[list[list[float]]] | None = None
+    #: Stroke colour; for free text, the text colour.
     color: Color
+    fill: Color | None = None
+    width: float | None = None
+    opacity: float | None = None
+    arrow_start: bool = False
+    arrow_end: bool = False
+    #: Free text.
+    text: str | None = None
+    font_family: FontFamily = "sans"
+    font_size: float = 12
+    bold: bool = False
+    italic: bool = False
+    align: Align = "left"
+    #: Free text: clockwise, as displayed; a multiple of 90.
+    rotation: int = 0
     contents: str | None = None
     author: str | None = None
 
@@ -76,8 +108,54 @@ class UpdateAnnotationRequest(_Body):
     contents: str | None = None
     color: Color | None = None
     opacity: float | None = None
-    #: New bounds (displayed space); the annotation is moved to the top-left corner.
+    #: New drawn bounds (displayed space). Notes move to its top-left corner;
+    #: free text, shapes and ink are moved and scaled to fill it.
     rect: list[float] | None = None
+    #: A colour, or null to remove the fill.
+    fill: Color | None = None
+    width: float | None = None
+    arrow_start: bool | None = None
+    arrow_end: bool | None = None
+    text: str | None = None
+    font_family: FontFamily | None = None
+    font_size: float | None = None
+    bold: bool | None = None
+    italic: bool | None = None
+    align: Align | None = None
+    rotation: int | None = None
+
+
+class ReplaceTextRequest(_Body):
+    #: The area whose text is replaced (displayed space); lines whose centre
+    #: lies in it are taken.
+    bbox: list[float]
+    #: The new text; empty deletes the old.
+    text: str
+    #: Omitted: keep the original's.
+    font_family: FontFamily | None = None
+    font_size: float | None = None
+    color: Color | None = None
+    align: Align | None = None
+    bold: bool | None = None
+    italic: bool | None = None
+
+
+class InsertImageRequest(_Body):
+    #: Where the image goes, displayed space; it is stretched to fill it.
+    rect: list[float]
+    #: Clockwise, as displayed; a multiple of 90.
+    rotation: int = 0
+    #: PNG, JPEG or SVG file, base64.
+    data: str = Field(min_length=1)
+    #: More pages that get the image at the same place, in the same step.
+    pages: list[int] | None = None
+    #: Names the undo step.
+    label: Literal["Image", "Signature", "Initials"] = "Image"
+
+
+class DeleteObjectRequest(_Body):
+    bbox: list[float]
+    kind: Literal["text", "image"]
 
 
 class SaveRequest(_Body):
@@ -170,6 +248,48 @@ def build_router(sessions: SessionRegistry, recovery: RecoveryStore) -> APIRoute
             return create_note(
                 session, body.page, body.point, body.contents or "", body.color, body.author
             )
+        if body.type == "freetext":
+            if body.rect is None:
+                raise BadRequestError("A text box needs a rect.")
+            style = TextStyle(
+                font_family=body.font_family,
+                font_size=body.font_size,
+                color=body.color.lower(),
+                bold=body.bold,
+                italic=body.italic,
+                align=body.align,
+            )
+            return create_freetext(
+                session,
+                body.page,
+                body.rect,
+                body.text or "",
+                style,
+                body.author,
+                rotation=body.rotation,
+                fill=body.fill,
+                opacity=1.0 if body.opacity is None else body.opacity,
+            )
+        if body.type in ("square", "circle", "line", "ink"):
+            style = ShapeStyle(
+                color=body.color,
+                fill=body.fill,
+                width=1.0 if body.width is None else body.width,
+                opacity=1.0 if body.opacity is None else body.opacity,
+                arrow_start=body.arrow_start,
+                arrow_end=body.arrow_end,
+            )
+            return create_shape(
+                session,
+                body.type,
+                body.page,
+                style,
+                body.author,
+                rect=body.rect,
+                points=body.points,
+                strokes=body.strokes,
+                contents=body.contents,
+            )
         if body.quads is None:
             raise BadRequestError("Text markup needs quads.")
         return create_markup(
@@ -188,6 +308,17 @@ def build_router(sessions: SessionRegistry, recovery: RecoveryStore) -> APIRoute
             color=body.color,
             opacity=body.opacity,
             rect=body.rect,
+            fill=body.fill if "fill" in body.model_fields_set else UNSET,
+            width=body.width,
+            arrow_start=body.arrow_start,
+            arrow_end=body.arrow_end,
+            text=body.text,
+            font_family=body.font_family,
+            font_size=body.font_size,
+            bold=body.bold,
+            italic=body.italic,
+            align=body.align,
+            rotation=body.rotation,
         )
 
     @router.delete("/{doc_id}/annotations/{annot_id}")
@@ -257,9 +388,56 @@ def build_router(sessions: SessionRegistry, recovery: RecoveryStore) -> APIRoute
             gone.set()
             watcher.cancel()
 
+    @router.get("/{doc_id}/pages/{index}/blocks")
+    def blocks(doc_id: str, index: int) -> dict[str, Any]:
+        return page_blocks(sessions.get(doc_id), index)
+
+    @router.post("/{doc_id}/pages/{index}/text/replace")
+    def text_replace(doc_id: str, index: int, body: ReplaceTextRequest) -> dict[str, Any]:
+        return replace_text(
+            sessions.get(doc_id),
+            index,
+            body.bbox,
+            body.text,
+            font_family=body.font_family,
+            font_size=body.font_size,
+            color=body.color.lower() if body.color else None,
+            align=body.align,
+            bold=body.bold,
+            italic=body.italic,
+        )
+
+    @router.post("/{doc_id}/pages/{index}/images")
+    def images(doc_id: str, index: int, body: InsertImageRequest) -> dict[str, Any]:
+        return insert_image(
+            sessions.get(doc_id),
+            index,
+            body.rect,
+            decode_image(body.data),
+            rotation=body.rotation,
+            pages=body.pages or [],
+            label=body.label,
+        )
+
+    @router.post("/{doc_id}/pages/{index}/objects/delete")
+    def objects_delete(doc_id: str, index: int, body: DeleteObjectRequest) -> dict[str, Any]:
+        return delete_object(sessions.get(doc_id), index, body.bbox, body.kind)
+
     @router.post("/{doc_id}/pages/rotate")
     def rotate(doc_id: str, body: RotateRequest) -> dict[str, Any]:
         return rotate_pages(sessions.get(doc_id), body.pages, body.degrees)
+
+    return router
+
+
+def build_fonts_router(sessions: SessionRegistry) -> APIRouter:
+    router = APIRouter(prefix="/fonts")
+
+    @router.get("")
+    def fonts(doc: str | None = None) -> list[dict[str, Any]]:
+        """Fonts for new text: the built-in families, plus the fonts embedded
+        in document ``doc`` when given."""
+        return list_fonts(sessions.get(doc) if doc else None)
 
     return router
 

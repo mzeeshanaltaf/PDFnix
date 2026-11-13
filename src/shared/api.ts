@@ -91,7 +91,18 @@ export const MENU_COMMANDS = [
   'tools.highlight',
   'tools.underline',
   'tools.strikeout',
-  'tools.note'
+  'tools.note',
+  'tools.hand',
+  'tools.text',
+  'tools.editText',
+  'tools.image',
+  'tools.shape',
+  'tools.draw',
+  'tools.deleteObject',
+  'tools.sign',
+  'tools.initials',
+  'tools.initialsAllPages',
+  'tools.manageSignatures'
 ] as const
 
 export type MenuCommand = (typeof MENU_COMMANDS)[number]
@@ -133,6 +144,31 @@ export interface UserSettings {
 
 export function isHexColor(value: unknown): value is string {
   return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
+}
+
+export type SignatureKind = 'signature' | 'initials'
+
+/** A signature or initials in the user's library. */
+export interface SignatureEntry {
+  id: string
+  kind: SignatureKind
+  name: string
+  /** Offered first when signing. One per kind at most. */
+  isDefault: boolean
+  /** Transparent PNG, base64. */
+  png: string
+  /** Pixel size of the PNG. */
+  width: number
+  height: number
+  /** ISO 8601. */
+  createdAt: string
+}
+
+export interface NewSignature {
+  kind: SignatureKind
+  name: string
+  /** PNG, base64. */
+  png: string
 }
 
 /** The answer to "Save changes to … before closing?". */
@@ -195,6 +231,14 @@ export interface Api {
     onCommand(listener: (command: MenuCommand) => void): Unsubscribe
     setState(state: MenuState): void
   }
+  /** The signature and initials library, stored by main in the app-data folder. */
+  signatures: {
+    list(): Promise<SignatureEntry[]>
+    add(signature: NewSignature): Promise<SignatureEntry>
+    rename(id: string, name: string): Promise<void>
+    remove(id: string): Promise<void>
+    setDefault(id: string): Promise<void>
+  }
 }
 
 /** IPC channel names, kept in one place so main and preload cannot drift apart. */
@@ -221,5 +265,10 @@ export const IPC = {
   filesClearRecent: 'files:clearRecent',
   filesRecentChanged: 'files:recentChanged',
   menuCommand: 'menu:command',
-  menuSetState: 'menu:setState'
+  menuSetState: 'menu:setState',
+  signaturesList: 'signatures:list',
+  signaturesAdd: 'signatures:add',
+  signaturesRename: 'signatures:rename',
+  signaturesRemove: 'signatures:remove',
+  signaturesSetDefault: 'signatures:setDefault'
 } as const

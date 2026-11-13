@@ -6,10 +6,13 @@ import { PasswordDialog } from '@/dialogs/PasswordDialog'
 import { PreferencesDialog } from '@/dialogs/PreferencesDialog'
 import { PropertiesDialog } from '@/dialogs/PropertiesDialog'
 import { RecoveryDialog } from '@/dialogs/RecoveryDialog'
+import { SignatureDialog } from '@/dialogs/SignatureDialog'
 import { SelectionToolbar } from '@/tools/SelectionToolbar'
 import { runCommand } from '@/shell/commands'
 import { EmptyState } from '@/shell/EmptyState'
 import { installShortcuts } from '@/shell/shortcuts'
+import { installPendingCommits } from '@/state/pending'
+import { installImagePaste } from '@/tools/images'
 import { SidePanel } from '@/shell/SidePanel'
 import { StatusBar } from '@/shell/StatusBar'
 import { TabStrip } from '@/shell/TabStrip'
@@ -80,6 +83,8 @@ function App(): React.JSX.Element {
   useEffect(() => startRecentSync(), [])
   useEffect(() => startDocumentSync(), [])
   useEffect(() => installShortcuts(), [])
+  useEffect(() => installPendingCommits(), [])
+  useEffect(() => installImagePaste(() => useTabs.getState().activeTabId), [])
   useEffect(() => window.api.menu.onCommand(runCommand), [])
 
   return (
@@ -106,6 +111,7 @@ function App(): React.JSX.Element {
       <SelectionToolbar />
       <RecoveryDialog />
       <PreferencesDialog />
+      <SignatureDialog />
       {/* Last, so the password prompt shows above the recovery dialog. */}
       <PasswordDialog />
       <PropertiesDialog />

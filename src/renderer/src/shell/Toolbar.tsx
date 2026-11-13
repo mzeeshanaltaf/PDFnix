@@ -2,15 +2,22 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Circle,
   Columns2,
+  Eraser,
   File,
+  Files,
   FolderOpen,
   Hand,
   Highlighter,
   Image,
+  Minus,
   MousePointer2,
   MoveHorizontal,
+  MoveUpRight,
   PanelLeft,
+  PenLine,
+  Plus,
   Printer,
   Redo2,
   RotateCcw,
@@ -19,10 +26,12 @@ import {
   Save,
   Scan,
   Search,
+  Settings2,
   Signature,
   Square,
   StickyNote,
   Strikethrough,
+  TextCursorInput,
   Type,
   Underline,
   Undo2,
@@ -30,7 +39,7 @@ import {
   ZoomOut,
   type LucideIcon
 } from 'lucide-react'
-import { isLayoutMode, type LayoutMode } from '../../../shared/api'
+import { isLayoutMode, type LayoutMode, type SignatureKind } from '../../../shared/api'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,12 +47,27 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  armSignature,
+  entriesOf,
+  loadSignatures,
+  previewUrl,
+  useSignatures
+} from '@/state/signatures'
 import { selectActiveTab, useTabs } from '@/state/tabs'
-import { isMarkupTool, PALETTE, useTools, type AnnotationTool, type ToolId } from '@/state/tools'
+import {
+  isMarkupTool,
+  PALETTE,
+  useTools,
+  type AnnotationTool,
+  type ShapeTool as ShapeKind,
+  type ToolId
+} from '@/state/tools'
 import { runCommand, type CommandId } from './commands'
 import { ThemeMenu } from './ThemeMenu'
 import { ToolbarButton } from './ToolbarButton'
@@ -58,7 +82,7 @@ const TOOLS: {
   shortcut?: string
 }[] = [
   { id: 'select', label: 'Select', icon: MousePointer2, command: 'tools.select', shortcut: 'V' },
-  { id: 'hand', label: 'Pan', icon: Hand },
+  { id: 'hand', label: 'Pan', icon: Hand, command: 'tools.hand' },
   {
     id: 'highlight',
     label: 'Highlight',
@@ -80,12 +104,168 @@ const TOOLS: {
     command: 'tools.strikeout',
     shortcut: 'K'
   },
-  { id: 'note', label: 'Note', icon: StickyNote, command: 'tools.note', shortcut: 'N' },
-  { id: 'text', label: 'Add text', icon: Type },
-  { id: 'image', label: 'Add image', icon: Image },
-  { id: 'shape', label: 'Add shape', icon: Square },
-  { id: 'signature', label: 'Sign', icon: Signature }
+  { id: 'note', label: 'Note', icon: StickyNote, command: 'tools.note', shortcut: 'N' }
 ]
+
+/** Tools that change the page itself; shapes and signing have their own menus. */
+const CONTENT_TOOLS: typeof TOOLS = [
+  { id: 'text', label: 'Add text', icon: Type, command: 'tools.text', shortcut: 'T' },
+  {
+    id: 'editText',
+    label: 'Edit text',
+    icon: TextCursorInput,
+    command: 'tools.editText',
+    shortcut: 'E'
+  },
+  { id: 'image', label: 'Add image', icon: Image, command: 'tools.image', shortcut: 'I' }
+]
+
+const AFTER_SHAPES: typeof TOOLS = [
+  { id: 'draw', label: 'Draw', icon: PenLine, command: 'tools.draw', shortcut: 'D' },
+  {
+    id: 'deleteObject',
+    label: 'Delete object',
+    icon: Eraser,
+    command: 'tools.deleteObject',
+    shortcut: 'X'
+  }
+]
+
+const SHAPES: { value: ShapeKind; label: string; icon: LucideIcon }[] = [
+  { value: 'square', label: 'Rectangle', icon: Square },
+  { value: 'circle', label: 'Ellipse', icon: Circle },
+  { value: 'line', label: 'Line', icon: Minus },
+  { value: 'arrow', label: 'Arrow', icon: MoveUpRight }
+]
+
+function ToolButtons({ tools, none }: { tools: typeof TOOLS; none: boolean }): React.JSX.Element {
+  const activeTool = useTools((state) => state.activeTool)
+  return (
+    <>
+      {tools.map((tool) => {
+        const command = tool.command
+        return (
+          <ToolbarButton
+            key={tool.id}
+            icon={tool.icon}
+            label={tool.label}
+            shortcut={tool.shortcut}
+            disabled={none || command === undefined}
+            active={!none && activeTool === tool.id}
+            onClick={command ? () => runCommand(command) : undefined}
+          />
+        )
+      })}
+    </>
+  )
+}
+
+/** The shape tool, with the kind of shape in a drop-down beside it. */
+function ShapeTool({ none }: { none: boolean }): React.JSX.Element {
+  const activeTool = useTools((state) => state.activeTool)
+  const kind = useTools((state) => state.shape.kind)
+  const current = SHAPES.find((shape) => shape.value === kind) ?? SHAPES[0]
+  return (
+    <>
+      <ToolbarButton
+        icon={current.icon}
+        label={`Shapes: ${current.label}`}
+        shortcut="S"
+        disabled={none}
+        active={!none && activeTool === 'shape'}
+        onClick={() => runCommand('tools.shape')}
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild disabled={none}>
+          <ToolbarButton icon={ChevronDown} label="Choose shape" compact disabled={none} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-40">
+          <DropdownMenuRadioGroup
+            value={kind}
+            onValueChange={(value) => {
+              useTools.getState().setShape({ kind: value as ShapeKind })
+              useTools.getState().setActiveTool('shape')
+            }}
+          >
+            {SHAPES.map(({ value, label, icon: Icon }) => (
+              <DropdownMenuRadioItem key={value} value={value}>
+                <Icon className="size-4" aria-hidden />
+                {label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  )
+}
+
+function SignatureItems({ kind }: { kind: SignatureKind }): React.JSX.Element | null {
+  const entries = useSignatures((state) => state.entries)
+  const own = entriesOf(entries, kind)
+  if (own.length === 0) return null
+  return (
+    <>
+      {own.map((entry) => (
+        <DropdownMenuItem
+          key={entry.id}
+          onSelect={() => void armSignature(kind, { entryId: entry.id })}
+        >
+          <img
+            src={previewUrl(entry)}
+            alt=""
+            className="h-7 w-24 rounded-sm bg-white object-contain"
+          />
+          <span className="truncate">{entry.name}</span>
+          {entry.isDefault && (
+            <span className="ml-auto text-[11px] text-muted-foreground">Default</span>
+          )}
+        </DropdownMenuItem>
+      ))}
+    </>
+  )
+}
+
+/** The Sign menu: pick a signature or initials, create them, initial every page. */
+function SignMenu({ none }: { none: boolean }): React.JSX.Element {
+  const activeTool = useTools((state) => state.activeTool)
+  return (
+    <DropdownMenu onOpenChange={(open) => open && void loadSignatures()}>
+      <DropdownMenuTrigger asChild disabled={none}>
+        <ToolbarButton
+          icon={Signature}
+          label="Sign"
+          disabled={none}
+          active={!none && activeTool === 'signature'}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-72">
+        <DropdownMenuLabel>Signatures</DropdownMenuLabel>
+        <SignatureItems kind="signature" />
+        <DropdownMenuItem onSelect={() => useSignatures.getState().showDialog('signature')}>
+          <Plus aria-hidden />
+          Create signature…
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Initials</DropdownMenuLabel>
+        <SignatureItems kind="initials" />
+        <DropdownMenuItem onSelect={() => useSignatures.getState().showDialog('initials')}>
+          <Plus aria-hidden />
+          Create initials…
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => runCommand('tools.initialsAllPages')}>
+          <Files aria-hidden />
+          Place initials on every page…
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => runCommand('tools.manageSignatures')}>
+          <Settings2 aria-hidden />
+          Manage signatures and initials…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 /** The colour of the armed annotation tool (or of highlights, with Select). */
 function ToolColor({ disabled }: { disabled: boolean }): React.JSX.Element {
@@ -146,10 +326,75 @@ function Divider({ className }: { className?: string }): React.JSX.Element {
   return <Separator orientation="vertical" className={`mx-1.5 h-5! ${className ?? ''}`} />
 }
 
+/** On narrow windows: every tool, including signing, in one menu. */
+function CompactEditTools({ none }: { none: boolean }): React.JSX.Element {
+  const activeTool = useTools((state) => state.activeTool)
+  const all = [...TOOLS, ...CONTENT_TOOLS, ...AFTER_SHAPES]
+  const current = [...all, { id: 'shape' as ToolId, icon: Square, label: 'Shapes' }].find(
+    (tool) => tool.id === activeTool && tool.id !== 'select'
+  )
+  return (
+    <DropdownMenu onOpenChange={(open) => open && void loadSignatures()}>
+      <DropdownMenuTrigger asChild disabled={none}>
+        <ToolbarButton
+          icon={current?.icon ?? PenLine}
+          label={current ? `Tools: ${current.label}` : 'Tools'}
+          disabled={none}
+          active={!none && current !== undefined}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        {all.map((tool) => (
+          <DropdownMenuItem
+            key={tool.id}
+            disabled={!tool.command}
+            onSelect={() => tool.command && runCommand(tool.command)}
+          >
+            <tool.icon aria-hidden />
+            {tool.label}
+            {tool.shortcut && (
+              <span className="ml-auto text-xs text-muted-foreground">{tool.shortcut}</span>
+            )}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        {SHAPES.map(({ value, label, icon: Icon }) => (
+          <DropdownMenuItem
+            key={value}
+            onSelect={() => {
+              useTools.getState().setShape({ kind: value })
+              useTools.getState().setActiveTool('shape')
+            }}
+          >
+            <Icon aria-hidden />
+            {label}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => runCommand('tools.sign')}>
+          <Signature aria-hidden />
+          Sign
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => runCommand('tools.initials')}>
+          <Signature aria-hidden />
+          Initials
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => runCommand('tools.initialsAllPages')}>
+          <Files aria-hidden />
+          Initials on every page…
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => runCommand('tools.manageSignatures')}>
+          <Settings2 aria-hidden />
+          Signatures and initials…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 /** The top toolbar. Everything on it acts on the active tab. */
 export function Toolbar(): React.JSX.Element {
   const tab = useTabs(selectActiveTab)
-  const activeTool = useTools((state) => state.activeTool)
   const none = tab === null
   const sidePanelOpen = tab?.sidePanel.open ?? false
   const searching = sidePanelOpen && tab?.sidePanel.panel === 'search'
@@ -311,21 +556,19 @@ export function Toolbar(): React.JSX.Element {
 
       <Divider className="max-[1180px]:hidden" />
       <div className="flex items-center gap-0.5 max-[1180px]:hidden">
-        {TOOLS.map((tool) => {
-          const command = tool.command
-          return (
-            <ToolbarButton
-              key={tool.id}
-              icon={tool.icon}
-              label={tool.label}
-              shortcut={tool.shortcut}
-              disabled={none || command === undefined}
-              active={!none && activeTool === tool.id}
-              onClick={command ? () => runCommand(command) : undefined}
-            />
-          )
-        })}
+        <ToolButtons tools={TOOLS} none={none} />
         <ToolColor disabled={none} />
+      </div>
+      <Divider className="max-[1400px]:hidden" />
+      <div className="flex items-center gap-0.5 max-[1400px]:hidden">
+        <ToolButtons tools={CONTENT_TOOLS} none={none} />
+        <ShapeTool none={none} />
+        <ToolButtons tools={AFTER_SHAPES} none={none} />
+        <SignMenu none={none} />
+      </div>
+      <div className="flex items-center gap-0.5 min-[1401px]:hidden">
+        <Divider />
+        <CompactEditTools none={none} />
       </div>
 
       <div className="flex-1" />

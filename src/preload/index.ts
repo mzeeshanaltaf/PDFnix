@@ -62,6 +62,13 @@ const api: Api = {
   menu: {
     onCommand: (listener) => subscribe<MenuCommand>(IPC.menuCommand, listener),
     setState: (state) => ipcRenderer.send(IPC.menuSetState, state)
+  },
+  signatures: {
+    list: () => ipcRenderer.invoke(IPC.signaturesList),
+    add: (signature) => ipcRenderer.invoke(IPC.signaturesAdd, signature),
+    rename: (id, name) => ipcRenderer.invoke(IPC.signaturesRename, id, name),
+    remove: (id) => ipcRenderer.invoke(IPC.signaturesRemove, id),
+    setDefault: (id) => ipcRenderer.invoke(IPC.signaturesSetDefault, id)
   }
 }
 

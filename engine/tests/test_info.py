@@ -1,9 +1,10 @@
 import os
+from datetime import UTC, datetime, timedelta, timezone
 
 import pymupdf
 import pytest
 
-from pdfengine.info import parse_pdf_date
+from pdfengine.info import parse_pdf_date, pdf_date
 
 from .conftest import PAGE_HEIGHT, PAGE_WIDTH, USER_PASSWORD
 
@@ -104,3 +105,21 @@ def test_info_of_an_encrypted_document(client, open_doc, encrypted_pdf):
 )
 def test_parse_pdf_date(value, expected):
     assert parse_pdf_date(value) == expected
+
+
+def test_pdf_date_uses_the_offset_in_effect():
+    """PyMuPDF's get_pdf_now applies the daylight-saving offset all year."""
+    moment = datetime(2026, 11, 13, 10, 49, 51, tzinfo=UTC)
+    text = pdf_date(moment)
+    # Whatever the machine's zone, the date names the same instant.
+    assert datetime.fromisoformat(parse_pdf_date(text)) == moment
+    local_offset = datetime.now().astimezone().utcoffset()
+    now = parse_pdf_date(pdf_date())
+    assert datetime.fromisoformat(now).utcoffset() == local_offset
+    assert abs(datetime.fromisoformat(now) - datetime.now(UTC)) < timedelta(seconds=5)
+
+
+def test_pdf_date_keeps_the_instant_from_any_zone():
+    for minutes in (0, 330, -480):
+        moment = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone(timedelta(minutes=minutes)))
+        assert datetime.fromisoformat(parse_pdf_date(pdf_date(moment))) == moment

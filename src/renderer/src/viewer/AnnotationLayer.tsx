@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import { MessageSquare, Trash2 } from 'lucide-react'
+import { MessageSquare, Trash2, Type } from 'lucide-react'
 import { cn } from 'cn'
 import type { Annotation, Rect } from '@/api/engine'
 import {
@@ -9,8 +9,12 @@ import {
   editComment,
   selectAnnotation
 } from '@/state/edits'
-import { PALETTE, useTools } from '@/state/tools'
+import { editTextBox } from '@/state/pending'
+import { INK_PALETTE, PALETTE, useTools } from '@/state/tools'
 import { annotationAt, isMarkup } from '@/tools/hitTest'
+import { trackDrag } from './editDom'
+import { moveRect, rectHeight, rectWidth, resizeRect, type Handle } from './editGeometry'
+import { ResizeHandles } from './EditOverlay'
 import { cssScale, quadBounds, rectToPx, type PxBox } from './geometry'
 import { usePageAnnotations } from './hooks'
 
@@ -22,8 +26,12 @@ const EDITOR_WIDTH = 248
 const EDITOR_HEIGHT = 168
 /** A new note's icon is centred on the click. */
 const NOTE_HALF = 9
-/** Elements of the layer that handle the pointer themselves. */
-const OWN_CONTROLS = '.pdf-annotation-toolbar, .pdf-comment-editor, .pdf-annotation-hit'
+/** Elements of the layer (and the edit layer above) that handle the pointer themselves. */
+const OWN_CONTROLS =
+  '.pdf-annotation-toolbar, .pdf-comment-editor, .pdf-annotation-hit, .pdf-handle, .pdf-edit-layer'
+/** Types that can be moved and resized; notes can only be moved. */
+const RESIZABLE = new Set(['freetext', 'square', 'circle', 'line', 'ink'])
+const SHAPE_WIDTHS = [1, 2, 3, 4, 6, 8]
 
 interface AnnotationLayerProps {
   tabId: string
@@ -86,6 +94,11 @@ function AnnotationToolbar({
   const above = box.top - TOOLBAR_HEIGHT - 6
   const top = above >= 0 ? above : box.top + box.height + 6
   const left = clamp(box.left, 4, pageWidth - TOOLBAR_WIDTH - 4)
+  const drawn = ['square', 'circle', 'line', 'ink', 'freetext'].includes(annotation.type)
+  const fillable = annotation.type === 'square' || annotation.type === 'circle'
+  const stroked = annotation.width !== undefined
+  // Text, shapes and drawings take ink colours; markup and notes the highlighter ones.
+  const palette = drawn ? INK_PALETTE.slice(0, 7) : PALETTE
   return (
     <div
       role="toolbar"
@@ -94,7 +107,61 @@ function AnnotationToolbar({
       style={{ top, left }}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      {PALETTE.map((swatch) => (
+      {annotation.type === 'freetext' && (
+        <>
+          <button
+            type="button"
+            title="Edit text"
+            aria-label="Edit text"
+            className="pdf-annotation-button"
+            onClick={() => editTextBox(tabId, annotation)}
+          >
+            <Type className="size-4" aria-hidden />
+          </button>
+          <span className="mx-0.5 h-4 w-px bg-border" />
+        </>
+      )}
+      {stroked && (
+        <select
+          aria-label="Line width"
+          className="pdf-bar-select w-[56px]"
+          value={annotation.width}
+          onChange={(event) =>
+            void changeAnnotation(tabId, target, { width: Number(event.target.value) })
+          }
+        >
+          {[...new Set([...SHAPE_WIDTHS, annotation.width ?? 1])]
+            .sort((a, b) => a - b)
+            .map((width) => (
+              <option key={width} value={width}>
+                {width} pt
+              </option>
+            ))}
+        </select>
+      )}
+      {fillable && (
+        <select
+          aria-label="Fill"
+          className="pdf-bar-select"
+          value={annotation.fill ?? 'none'}
+          onChange={(event) =>
+            void changeAnnotation(tabId, target, {
+              fill: event.target.value === 'none' ? null : event.target.value
+            })
+          }
+        >
+          <option value="none">No fill</option>
+          {INK_PALETTE.map((swatch) => (
+            <option key={swatch.value} value={swatch.value}>
+              Fill: {swatch.label}
+            </option>
+          ))}
+          {annotation.fill && !INK_PALETTE.some((swatch) => swatch.value === annotation.fill) && (
+            <option value={annotation.fill}>Fill: {annotation.fill}</option>
+          )}
+        </select>
+      )}
+      {palette.map((swatch) => (
         <button
           key={swatch.value}
           type="button"
@@ -244,6 +311,8 @@ export const AnnotationLayer = memo(function AnnotationLayer({
   const tool = useTools((state) => state.activeTool)
   const editing = useTools((state) => state.editing)
   const [drag, setDrag] = useState<{ annotId: number; x: number; y: number } | null>(null)
+  /** The new bounds of an annotation being resized, in points. */
+  const [resize, setResize] = useState<{ annotId: number; rect: Rect } | null>(null)
 
   /** What the page's own listeners work with. */
   const latest = useRef({ annotations, tool, zoom })
@@ -303,7 +372,12 @@ export const AnnotationLayer = memo(function AnnotationLayer({
     drag && selected && drag.annotId === selected.annotId
       ? { x: drag.x, y: drag.y }
       : { x: 0, y: 0 }
-  const selectedBoxes = selected ? outlineBoxes(selected, zoom, offset) : []
+  const resizing = resize && selected && resize.annotId === selected.annotId ? resize.rect : null
+  const selectedBoxes = selected
+    ? resizing
+      ? [rectToPx(resizing, zoom)]
+      : outlineBoxes(selected, zoom, offset)
+    : []
   const selectedBox = selectedBoxes.length > 0 ? unionBox(selectedBoxes) : null
   const editingHere =
     editing && editing.tabId === tabId && editing.page === page
@@ -317,7 +391,8 @@ export const AnnotationLayer = memo(function AnnotationLayer({
     const element = event.currentTarget
     const origin = { x: event.clientX, y: event.clientY }
     selectAnnotation(tabId, { annotId: annotation.annotId, page })
-    const movable = annotation.type === 'note' && tool === 'select'
+    const movable =
+      (annotation.type === 'note' || RESIZABLE.has(annotation.type)) && tool === 'select'
     element.setPointerCapture(event.pointerId)
     let moved = { x: 0, y: 0 }
 
@@ -336,10 +411,7 @@ export const AnnotationLayer = memo(function AnnotationLayer({
       const target = { annotId: annotation.annotId, page }
       if (movable && Math.hypot(moved.x, moved.y) > CLICK_SLOP) {
         const scale = cssScale(zoom)
-        const [x0, y0, x1, y1] = annotation.rect
-        const dx = moved.x / scale
-        const dy = moved.y / scale
-        const rect: Rect = [x0 + dx, y0 + dy, x1 + dx, y1 + dy]
+        const rect = moveRect(annotation.rect, moved.x / scale, moved.y / scale)
         void changeAnnotation(tabId, target, { rect })
       } else if (annotation.type === 'note') {
         editComment(tabId, target)
@@ -348,6 +420,30 @@ export const AnnotationLayer = memo(function AnnotationLayer({
     element.addEventListener('pointermove', onMove)
     element.addEventListener('pointerup', onUp)
     element.addEventListener('pointercancel', onUp)
+  }
+
+  const startResize = (handle: Handle, event: React.PointerEvent<HTMLElement>): void => {
+    if (!selected) return
+    const target = { annotId: selected.annotId, page }
+    const from = selected.rect
+    let latestRect = from
+    trackDrag(
+      event,
+      zoom,
+      (delta, pointer) => {
+        // Shift keeps the shape; a line or drawing scales freely otherwise.
+        const aspect = pointer.shiftKey ? rectWidth(from) / rectHeight(from) : null
+        latestRect = resizeRect(from, handle, delta.x, delta.y, { aspect, min: 2 })
+        setResize({ annotId: selected.annotId, rect: latestRect })
+      },
+      (_delta, moved) => {
+        if (moved) {
+          void changeAnnotation(tabId, target, { rect: latestRect }).then(() => setResize(null))
+        } else {
+          setResize(null)
+        }
+      }
+    )
   }
 
   return (
@@ -363,21 +459,30 @@ export const AnnotationLayer = memo(function AnnotationLayer({
             data-annot-id={annotation.annotId}
             onPointerDown={(event) => startDrag(event, annotation)}
             onDoubleClick={() =>
-              editComment(tabId, { annotId: annotation.annotId, page: annotation.page })
+              annotation.type === 'freetext' && tool === 'select'
+                ? editTextBox(tabId, annotation)
+                : editComment(tabId, { annotId: annotation.annotId, page: annotation.page })
             }
           />
         ))}
       {selectedBoxes.map((box, index) => (
         <div key={index} className="pdf-annotation-selected" style={box} />
       ))}
-      {selected && selectedBox && !drag && editingHere?.annotId !== selected.annotId && (
-        <AnnotationToolbar
-          tabId={tabId}
-          annotation={selected}
-          box={selectedBox}
-          pageWidth={pageWidth}
-        />
+      {selected && selectedBox && !drag && tool === 'select' && RESIZABLE.has(selected.type) && (
+        <ResizeHandles box={selectedBox} onStart={startResize} />
       )}
+      {selected &&
+        selectedBox &&
+        !drag &&
+        !resizing &&
+        editingHere?.annotId !== selected.annotId && (
+          <AnnotationToolbar
+            tabId={tabId}
+            annotation={selected}
+            box={selectedBox}
+            pageWidth={pageWidth}
+          />
+        )}
       {editingHere && (
         <CommentEditor
           key={editingHere.annotId}

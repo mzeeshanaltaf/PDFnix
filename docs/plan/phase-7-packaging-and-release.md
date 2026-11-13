@@ -25,11 +25,11 @@ Not included: auto-update, code signing with a purchased certificate, Microsoft 
 ### 2. Package the app
 
 - `electron-builder.yml`:
-  - `extraResources`: the frozen engine folder → `resources/engine`; `resources/tessdata`, bundled fonts and signature fonts → `resources/…`.
+  - `extraResources`: the frozen engine folder → `resources/engine`; `resources/tessdata` → `resources/…`. (Phase 4 bundles no engine fonts: text uses MuPDF's built-in fonts. The four handwriting fonts for typed signatures are renderer assets in `src/renderer/src/assets/fonts/`, bundled by Vite, with their `OFL-*.txt` licences beside them; include those licences in the About dialog's notices.)
   - Target: NSIS installer, x64; per-user install by default with the option to install for all users; Start-menu and optional desktop shortcut; uninstaller that leaves user data unless asked.
   - `fileAssociations` for `.pdf` so the app appears under "Open with" and can be chosen as the default.
 - `src/main/engine.ts` uses the packaged path when `app.isPackaged`.
-- Resource paths (tessdata, fonts) are passed to the engine through environment variables so the same code runs in development and production.
+- Resource paths (tessdata) are passed to the engine through environment variables so the same code runs in development and production.
 - Script: `pnpm dist` runs lint, type-check, tests, `build:engine`, then electron-builder.
 
 ### 3. App identity

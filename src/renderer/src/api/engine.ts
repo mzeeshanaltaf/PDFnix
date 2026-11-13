@@ -105,6 +105,20 @@ export type AnnotationType =
 
 export type MarkupType = 'highlight' | 'underline' | 'strikeout'
 
+export type FontFamily = 'sans' | 'serif' | 'mono'
+export type TextAlign = 'left' | 'center' | 'right'
+/** Clockwise quarter turns, as displayed. */
+export type Rotation = 0 | 90 | 180 | 270
+
+export interface TextStyle {
+  fontFamily: FontFamily
+  /** Points. */
+  fontSize: number
+  bold: boolean
+  italic: boolean
+  align: TextAlign
+}
+
 export interface Annotation {
   /** Stable for the life of the engine session. */
   annotId: number
@@ -114,7 +128,7 @@ export interface Annotation {
   rect: Rect
   /** Text markup only. */
   quads?: Quad[]
-  /** `#rrggbb`, or null if it has none. */
+  /** `#rrggbb`, or null if it has none. For free text, the text colour. */
   color: string | null
   opacity: number
   contents: string
@@ -122,6 +136,33 @@ export interface Annotation {
   /** ISO 8601, or null. */
   createdAt: string | null
   modifiedAt: string | null
+  /** Shapes, ink and free text: interior (background for free text), or null. */
+  fill?: string | null
+  /** Shapes and ink: line width in points. */
+  width?: number
+  /** Lines: the two end points. */
+  points?: [[number, number], [number, number]]
+  arrowStart?: boolean
+  arrowEnd?: boolean
+  /** Free text. */
+  text?: string
+  fontFamily?: FontFamily
+  fontSize?: number
+  bold?: boolean
+  italic?: boolean
+  align?: TextAlign
+  rotation?: Rotation
+  /** Free text: its text box (equal to `rect` for boxes without a border). */
+  box?: Rect
+}
+
+export type ShapeKind = 'square' | 'circle' | 'line' | 'ink'
+
+export interface ShapeStyle {
+  color: string
+  fill?: string | null
+  width?: number
+  opacity?: number
 }
 
 export type NewAnnotation =
@@ -142,13 +183,104 @@ export type NewAnnotation =
       author?: string
       contents?: string
     }
+  | (ShapeStyle & {
+      type: 'square' | 'circle'
+      page: number
+      rect: Rect
+      author?: string
+    })
+  | (ShapeStyle & {
+      type: 'line'
+      page: number
+      points: [[number, number], [number, number]]
+      arrowStart?: boolean
+      arrowEnd?: boolean
+      author?: string
+    })
+  | (ShapeStyle & {
+      type: 'ink'
+      page: number
+      strokes: [number, number][][]
+      author?: string
+    })
+  | (Partial<TextStyle> & {
+      type: 'freetext'
+      page: number
+      rect: Rect
+      text: string
+      /** The text colour. */
+      color: string
+      fill?: string | null
+      opacity?: number
+      rotation?: Rotation
+      author?: string
+    })
 
-export interface AnnotationChange {
+export interface AnnotationChange extends Partial<TextStyle> {
   contents?: string
   color?: string
   opacity?: number
-  /** Move (notes): the annotation's new top-left corner is `rect[0], rect[1]`. */
+  /**
+   * New bounds. Notes move to its top-left corner; free text, shapes and ink
+   * are moved and scaled to fill it.
+   */
   rect?: Rect
+  /** A colour, or null to remove the fill. */
+  fill?: string | null
+  width?: number
+  arrowStart?: boolean
+  arrowEnd?: boolean
+  text?: string
+  rotation?: Rotation
+}
+
+export interface TextSpan {
+  text: string
+  font: string
+  size: number
+  color: string
+  /** MuPDF span flags: 2 italic, 4 serif, 8 monospaced, 16 bold. */
+  flags: number
+}
+
+/** A paragraph of the page's own text that can be edited. */
+export interface TextBlock {
+  blockId: string
+  bbox: Rect
+  /** Reading direction, clockwise as displayed. */
+  angle: Rotation
+  text: string
+  lines: { bbox: Rect; spans: TextSpan[] }[]
+}
+
+export interface PageBlocks {
+  blocks: TextBlock[]
+  images: { imageId: string; bbox: Rect }[]
+}
+
+export interface TextReplacement extends Partial<TextStyle> {
+  /** Lines whose centre is inside it are replaced. */
+  bbox: Rect
+  /** Empty deletes the text. */
+  text: string
+  color?: string
+}
+
+export interface FontInfo {
+  id: string
+  name: string
+  kind: 'builtin' | 'document'
+  subset: boolean
+}
+
+export interface NewImage {
+  rect: Rect
+  rotation?: Rotation
+  /** PNG, JPEG or SVG file, base64. */
+  data: string
+  /** More pages that get the image at the same place, in the same undo step. */
+  pages?: number[]
+  label?: 'Image' | 'Signature' | 'Initials'
 }
 
 export interface SavedDocument extends HistoryState {
@@ -258,6 +390,16 @@ export type RotateResult = MutationResult
 
 export interface AnnotationResult extends MutationResult {
   annotation: Annotation
+}
+
+export interface TextReplaceResult extends MutationResult {
+  /** Set unless the text was deleted. */
+  font?: string
+  /** The original font could not be used. */
+  substituted?: boolean
+  /** Below 1 when the text was shrunk to fit. */
+  fontScale?: number
+  rect?: Rect
 }
 
 export interface UndoResult extends MutationResult {
@@ -426,6 +568,38 @@ export const engine = {
 
   deleteAnnotation: (docId: string, annotId: number, page: number): Promise<MutationResult> =>
     request<MutationResult>('DELETE', `${doc(docId)}/annotations/${annotId}?page=${page}`),
+
+  /** The page content's editable text blocks and images. */
+  pageBlocks: (docId: string, page: number, signal?: AbortSignal): Promise<PageBlocks> =>
+    request<PageBlocks>('GET', `${doc(docId)}/pages/${page}/blocks`, { signal }),
+
+  replaceText: (
+    docId: string,
+    page: number,
+    replacement: TextReplacement
+  ): Promise<TextReplaceResult> =>
+    request<TextReplaceResult>('POST', `${doc(docId)}/pages/${page}/text/replace`, {
+      body: replacement
+    }),
+
+  /** Draws an image into the page content. */
+  insertImage: (docId: string, page: number, image: NewImage): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/pages/${page}/images`, { body: image }),
+
+  /** Removes the text lines centred in `bbox`, or the image drawn exactly at it. */
+  deleteObject: (
+    docId: string,
+    page: number,
+    bbox: Rect,
+    kind: 'text' | 'image'
+  ): Promise<MutationResult> =>
+    request<MutationResult>('POST', `${doc(docId)}/pages/${page}/objects/delete`, {
+      body: { bbox, kind }
+    }),
+
+  /** Fonts for new text; with `docId`, also those embedded in the document. */
+  fonts: (docId?: string): Promise<FontInfo[]> =>
+    request<FontInfo[]>('GET', docId ? `/fonts?doc=${encodeURIComponent(docId)}` : '/fonts'),
 
   undo: (docId: string): Promise<UndoResult> => request<UndoResult>('POST', `${doc(docId)}/undo`),
 

@@ -4,7 +4,7 @@
  * revision (so a changed page fetches afresh), least recently used first out.
  */
 
-import { engine, isAbortError, type Annotation, type PageText } from '@/api/engine'
+import { engine, isAbortError, type Annotation, type PageBlocks, type PageText } from '@/api/engine'
 
 export type PageFetcher<T> = (docId: string, page: number, signal: AbortSignal) => Promise<T>
 
@@ -125,6 +125,12 @@ export const pageTexts = new PageDataStore<PageText>(
   (docId, page, signal) => engine.pageText(docId, page, signal),
   120,
   'page text'
+)
+
+export const pageBlocks = new PageDataStore<PageBlocks>(
+  (docId, page, signal) => engine.pageBlocks(docId, page, signal),
+  40,
+  'text blocks'
 )
 
 export const pageAnnotations = new PageDataStore<Annotation[]>(

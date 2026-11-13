@@ -16,7 +16,10 @@ import {
   undo
 } from '@/state/edits'
 import { getActiveTab, useTabs, type SidePanelId } from '@/state/tabs'
+import { cancelPending, commitPending, usePending } from '@/state/pending'
+import { armSignature, useSignatures } from '@/state/signatures'
 import { useTools, type ToolId } from '@/state/tools'
+import { addImageFromFile } from '@/tools/images'
 import type { MarkupType } from '@/api/engine'
 import { getViewer } from '@/viewer/controller'
 
@@ -76,6 +79,10 @@ export function runCommand(command: CommandId): void {
     useTools.getState().setActiveTool('select')
     return
   }
+  if (command === 'tools.manageSignatures') {
+    useSignatures.getState().showDialog('signature')
+    return
+  }
 
   // Everything else acts on the open document.
   const tab = getActiveTab()
@@ -84,20 +91,23 @@ export function runCommand(command: CommandId): void {
   const store = useTabs.getState()
 
   switch (command) {
+    // Whatever is being placed becomes part of the document first.
     case 'file.save':
-      void saveTab(tab.id)
+      void commitPending().then(() => saveTab(tab.id))
       break
     case 'file.saveAs':
-      void saveTab(tab.id, true)
+      void commitPending().then(() => saveTab(tab.id, true))
       break
     case 'file.closeTab':
-      void closeTab(tab.id)
+      void commitPending().then(() => closeTab(tab.id))
       break
     case 'file.properties':
       showProperties(tab.id)
       break
     case 'edit.undo':
-      void undo(tab.id)
+      // Undo while placing something drops it instead.
+      if (usePending.getState().pending) cancelPending()
+      else void undo(tab.id)
       break
     case 'edit.redo':
       void redo(tab.id)
@@ -107,7 +117,8 @@ export function runCommand(command: CommandId): void {
       break
     case 'edit.escape': {
       const tools = useTools.getState()
-      if (tools.editing) tools.setEditing(null)
+      if (usePending.getState().pending) void commitPending()
+      else if (tools.editing) tools.setEditing(null)
       else if (tab.selectedAnnotation) selectAnnotation(tab.id, null)
       else if (tools.activeTool !== 'select') tools.setActiveTool('select')
       break
@@ -119,6 +130,36 @@ export function runCommand(command: CommandId): void {
       break
     case 'tools.note':
       toggleTool('note')
+      break
+    case 'tools.hand':
+      toggleTool('hand')
+      break
+    case 'tools.text':
+      toggleTool('text')
+      break
+    case 'tools.editText':
+      toggleTool('editText')
+      break
+    case 'tools.shape':
+      toggleTool('shape')
+      break
+    case 'tools.draw':
+      toggleTool('draw')
+      break
+    case 'tools.deleteObject':
+      toggleTool('deleteObject')
+      break
+    case 'tools.image':
+      void addImageFromFile(tab.id)
+      break
+    case 'tools.sign':
+      void armSignature('signature')
+      break
+    case 'tools.initials':
+      void armSignature('initials')
+      break
+    case 'tools.initialsAllPages':
+      void armSignature('initials', { allPages: true })
       break
     case 'edit.find':
       openSearch(tab.id)

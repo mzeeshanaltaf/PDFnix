@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
-from .api import build_recovery_router, build_router
+from .api import build_fonts_router, build_recovery_router, build_router
 from .errors import UnauthorizedError, install_error_handlers
 from .recovery import RECOVERY_DELAY, RecoveryStore
 from .sessions import SessionRegistry
@@ -94,5 +94,6 @@ def create_app(
 
     v1.include_router(build_router(sessions, recovery))
     v1.include_router(build_recovery_router(sessions, recovery))
+    v1.include_router(build_fonts_router(sessions))
     app.include_router(v1)
     return app

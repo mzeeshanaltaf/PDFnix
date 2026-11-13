@@ -121,6 +121,18 @@ export function shortcutFor(key: KeyInfo, context: KeyContext): ShortcutAction |
       return key.shiftKey ? null : command('tools.strikeout')
     case 'n':
       return key.shiftKey ? null : command('tools.note')
+    case 't':
+      return key.shiftKey ? null : command('tools.text')
+    case 'e':
+      return key.shiftKey ? null : command('tools.editText')
+    case 'i':
+      return key.shiftKey ? null : command('tools.image')
+    case 's':
+      return key.shiftKey ? null : command('tools.shape')
+    case 'd':
+      return key.shiftKey ? null : command('tools.draw')
+    case 'x':
+      return key.shiftKey ? null : command('tools.deleteObject')
     case 'ArrowRight':
       return key.shiftKey ? null : command('go.nextPage')
     case 'ArrowLeft':
