@@ -2,7 +2,7 @@
 
 Single source of truth for where the project stands. Read fully at the start of every session; update during and at the end of every session. The protocol is in `CLAUDE.md` at the project root.
 
-**Last updated:** 2026-11-13 — phase 4 session (phase 4 complete; see "Uncommitted work")
+**Last updated:** 2026-11-13 — phase 4 session (phase 4 complete, committed and pushed)
 
 ## Phases
 
@@ -22,7 +22,7 @@ Status values: Not started · In progress · Complete · Complete with accepted 
 
 - **Current phase:** 5 — Document tools (not started)
 - **Next action:** in a new session, follow the start-of-session steps in `CLAUDE.md`, then begin phase 5 from [phase-5-document-tools.md](phase-5-document-tools.md). Read the phase 4 handoff note first: `compat.py` must stay loaded for `insert_pdf` to work under the journal, and page operations must be re-checked against the journalling rules.
-- **Uncommitted work:** all of phase 4 is uncommitted on `main` until the user agrees to the proposed commit. Phases 1–3 are committed and pushed to `origin` (https://github.com/mzeeshanaltaf/PDFnix.git). Ask before pushing later phases unless told otherwise.
+- **Uncommitted work:** none. Phases 1–4 are committed on `main` and pushed to `origin` (https://github.com/mzeeshanaltaf/PDFnix.git); the user asked for the phase 4 push. Ask before pushing later phases unless told otherwise.
 
 ## Current phase progress
 
