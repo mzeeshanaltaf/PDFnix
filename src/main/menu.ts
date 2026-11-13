@@ -1,5 +1,6 @@
 import { app, dialog, Menu, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 import {
+  EMPTY_MENU_STATE,
   IPC,
   type LayoutMode,
   type MenuCommand,
@@ -10,7 +11,7 @@ import { clearRecent, listRecent, openFiles, openWithDialog } from './files'
 import { changeTheme, currentTheme } from './theme'
 
 let getWindow: () => BrowserWindow | null = () => null
-let state: MenuState = { hasDocument: false, layout: null }
+let state: MenuState = EMPTY_MENU_STATE
 
 /** A menu entry that exists but is not implemented yet. */
 function placeholder(label: string, accelerator?: string): MenuItemConstructorOptions {
@@ -28,14 +29,14 @@ function command(
   label: string,
   id: MenuCommand,
   accelerator?: string,
-  options: { needsDocument?: boolean } = {}
+  options: { needsDocument?: boolean; enabled?: boolean } = {}
 ): MenuItemConstructorOptions {
-  const { needsDocument = true } = options
+  const { needsDocument = true, enabled = true } = options
   return {
     label,
     accelerator,
     registerAccelerator: false,
-    enabled: !needsDocument || state.hasDocument,
+    enabled: enabled && (!needsDocument || state.hasDocument),
     click: () => {
       const window = getWindow()
       if (window && !window.isDestroyed()) window.webContents.send(IPC.menuCommand, id)
@@ -158,12 +159,13 @@ export function buildMenu(): void {
         },
         { label: 'Open Recent', submenu: recentItems() },
         { type: 'separator' },
-        placeholder('Save', 'CmdOrCtrl+S'),
-        placeholder('Save As…', 'CmdOrCtrl+Shift+S'),
+        command('Save', 'file.save', 'CmdOrCtrl+S'),
+        command('Save As…', 'file.saveAs', 'CmdOrCtrl+Shift+S'),
         { type: 'separator' },
         placeholder('Print…', 'CmdOrCtrl+P'),
         { type: 'separator' },
         command('Properties…', 'file.properties', 'CmdOrCtrl+D'),
+        command('Preferences…', 'file.preferences', 'CmdOrCtrl+,', { needsDocument: false }),
         { type: 'separator' },
         command('Close Tab', 'file.closeTab', 'CmdOrCtrl+W'),
         { label: 'Exit', role: 'quit' }
@@ -172,15 +174,19 @@ export function buildMenu(): void {
     {
       label: '&Edit',
       submenu: [
-        placeholder('Undo', 'CmdOrCtrl+Z'),
-        placeholder('Redo', 'CmdOrCtrl+Y'),
+        command(state.undoName ? `Undo ${state.undoName}` : 'Undo', 'edit.undo', 'CmdOrCtrl+Z', {
+          enabled: state.canUndo
+        }),
+        command(state.redoName ? `Redo ${state.redoName}` : 'Redo', 'edit.redo', 'CmdOrCtrl+Y', {
+          enabled: state.canRedo
+        }),
         { type: 'separator' },
         // These act on whatever has the focus: a text box, or text selected
         // on a page.
         { label: 'Cut', role: 'cut' },
         { label: 'Copy', role: 'copy' },
         { label: 'Paste', role: 'paste' },
-        placeholder('Delete', 'Delete'),
+        command('Delete Annotation', 'edit.delete', 'Delete', { enabled: state.canDelete }),
         { label: 'Select All', role: 'selectAll' },
         { type: 'separator' },
         command('Find…', 'edit.find', 'CmdOrCtrl+F'),
@@ -192,6 +198,12 @@ export function buildMenu(): void {
     {
       label: '&Tools',
       submenu: [
+        command('Select', 'tools.select', 'V'),
+        command('Highlight', 'tools.highlight', 'H'),
+        command('Underline', 'tools.underline', 'U'),
+        command('Strikeout', 'tools.strikeout', 'K'),
+        command('Note', 'tools.note', 'N'),
+        { type: 'separator' },
         placeholder('Organise Pages…'),
         placeholder('Fill Form'),
         placeholder('Redact…'),
@@ -219,7 +231,8 @@ export function initMenu(windowGetter: () => BrowserWindow | null): void {
 
 /** The renderer reports what is open; entries are enabled and checked to match. */
 export function setMenuState(next: MenuState): void {
-  if (next.hasDocument === state.hasDocument && next.layout === state.layout) return
+  const changed = (Object.keys(next) as (keyof MenuState)[]).some((key) => next[key] !== state[key])
+  if (!changed) return
   state = next
   buildMenu()
 }

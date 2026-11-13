@@ -2,15 +2,17 @@
 
 A PDF reader and editor for Windows. The app is built with Electron, React and TypeScript, and a bundled Python engine (FastAPI + PyMuPDF) does all the PDF work: it opens documents, renders pages, extracts text and searches.
 
-The project is built in seven phases. Phases 1 (foundation) and 2 (viewer) are complete, so PDFnix is currently a **read-only reader**:
+The project is built in seven phases. Phases 1 (foundation), 2 (viewer) and 3 (annotations and save) are complete, so PDFnix is currently a **reader that can annotate and save**:
 
 - Open PDFs from the Open dialog, by dragging them onto the window, from the command line, or from the recent-files list. Password-protected files are supported.
 - One tab per document. Each tab keeps its own page, zoom, layout, side panel and search.
 - Zoom from 10 % to 800 % (Ctrl+wheel, Ctrl +/−/0, fit width, fit page). Continuous, single-page and two-page layouts. Rotate one page or all pages.
 - Select and copy text. Search with match case and whole word; hits are highlighted on the pages.
 - Page thumbnails, the document outline, and a properties dialog.
+- Highlight, underline and strike out text (H, U, K), add sticky notes (N) and comment on any annotation. Recolour, move and delete annotations; all comments are listed in the Comments panel.
+- Undo and redo every change (Ctrl+Z, Ctrl+Y). Save (Ctrl+S) and Save As (Ctrl+Shift+S); protected files stay protected. Unsaved changes are asked about on close and kept in recovery copies if the app stops unexpectedly.
 
-Annotations and saving arrive in phase 3. The full plan is in [docs/plan](docs/plan), and the current state is in [docs/plan/STATUS.md](docs/plan/STATUS.md).
+Content editing and signatures arrive in phase 4. The full plan is in [docs/plan](docs/plan), and the current state is in [docs/plan/STATUS.md](docs/plan/STATUS.md).
 
 ## Requirements
 

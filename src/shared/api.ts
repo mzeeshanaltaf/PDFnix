@@ -59,8 +59,14 @@ export interface RecentFile {
  * same commands from the toolbar and from keyboard shortcuts.
  */
 export const MENU_COMMANDS = [
+  'file.save',
+  'file.saveAs',
   'file.closeTab',
   'file.properties',
+  'file.preferences',
+  'edit.undo',
+  'edit.redo',
+  'edit.delete',
   'edit.find',
   'edit.findNext',
   'edit.findPrevious',
@@ -80,16 +86,57 @@ export const MENU_COMMANDS = [
   'go.nextPage',
   'go.previousPage',
   'go.firstPage',
-  'go.lastPage'
+  'go.lastPage',
+  'tools.select',
+  'tools.highlight',
+  'tools.underline',
+  'tools.strikeout',
+  'tools.note'
 ] as const
 
 export type MenuCommand = (typeof MENU_COMMANDS)[number]
+
+export function isMenuCommand(value: unknown): value is MenuCommand {
+  return typeof value === 'string' && (MENU_COMMANDS as readonly string[]).includes(value)
+}
 
 /** What the menu needs to know about the renderer to enable and check its entries. */
 export interface MenuState {
   hasDocument: boolean
   layout: LayoutMode | null
+  canUndo: boolean
+  canRedo: boolean
+  /** Name of the step Undo would take back ("Highlight"), or null. */
+  undoName: string | null
+  redoName: string | null
+  /** An annotation is selected, so Edit > Delete removes it. */
+  canDelete: boolean
 }
+
+export const EMPTY_MENU_STATE: MenuState = {
+  hasDocument: false,
+  layout: null,
+  canUndo: false,
+  canRedo: false,
+  undoName: null,
+  redoName: null,
+  canDelete: false
+}
+
+/** Settings the user can change. Persisted by main. */
+export interface UserSettings {
+  /** Written into the annotations the user creates. */
+  authorName: string
+  /** `#rrggbb`: the colour new highlights start with. */
+  highlightColor: string
+}
+
+export function isHexColor(value: unknown): value is string {
+  return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
+}
+
+/** The answer to "Save changes to … before closing?". */
+export type UnsavedChoice = 'save' | 'discard' | 'cancel'
 
 export type Unsubscribe = () => void
 
@@ -103,6 +150,21 @@ export interface Api {
   }
   app: {
     getVersion(): Promise<string>
+    /**
+     * The window is about to close or the app to quit. The renderer deals
+     * with unsaved changes and then calls `confirmClose`; if it never does,
+     * nothing closes (the user cancelled).
+     */
+    onCloseRequest(listener: () => void): Unsubscribe
+    confirmClose(): void
+  }
+  settings: {
+    get(): Promise<UserSettings>
+    set(patch: Partial<UserSettings>): Promise<UserSettings>
+  }
+  dialogs: {
+    /** The native "Save changes?" question for a document with unsaved changes. */
+    confirmUnsaved(fileName: string): Promise<UnsavedChoice>
   }
   theme: {
     get(): Promise<ThemeSource>
@@ -112,6 +174,8 @@ export interface Api {
   files: {
     /** Shows the Open dialog. Resolves with the chosen paths (none if cancelled). */
     showOpenDialog(): Promise<string[]>
+    /** Shows the Save As dialog, starting at `defaultPath`. Null if cancelled. */
+    showSaveDialog(defaultPath: string): Promise<string | null>
     /** The path on disk of a dropped file, or '' if it has none. */
     pathForFile(file: File): string
     /**
@@ -139,6 +203,12 @@ export const IPC = {
   engineGetStatus: 'engine:getStatus',
   engineStatus: 'engine:status',
   appGetVersion: 'app:getVersion',
+  appCloseRequest: 'app:closeRequest',
+  appConfirmClose: 'app:confirmClose',
+  settingsGet: 'settings:get',
+  settingsSet: 'settings:set',
+  dialogsConfirmUnsaved: 'dialogs:confirmUnsaved',
+  filesShowSaveDialog: 'files:showSaveDialog',
   themeGet: 'theme:get',
   themeSet: 'theme:set',
   themeChanged: 'theme:changed',

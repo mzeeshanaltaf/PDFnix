@@ -8,7 +8,6 @@ import {
   Hand,
   Highlighter,
   Image,
-  MessageSquare,
   MousePointer2,
   MoveHorizontal,
   PanelLeft,
@@ -22,7 +21,10 @@ import {
   Search,
   Signature,
   Square,
+  StickyNote,
+  Strikethrough,
   Type,
+  Underline,
   Undo2,
   ZoomIn,
   ZoomOut,
@@ -39,24 +41,100 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { selectActiveTab, useTabs } from '@/state/tabs'
-import { useTools, type ToolId } from '@/state/tools'
-import { runCommand } from './commands'
+import { isMarkupTool, PALETTE, useTools, type AnnotationTool, type ToolId } from '@/state/tools'
+import { runCommand, type CommandId } from './commands'
 import { ThemeMenu } from './ThemeMenu'
 import { ToolbarButton } from './ToolbarButton'
 import { PageNumberBox, ZoomBox } from './ToolbarFields'
 
-/** Tools of later phases: laid out and labelled, not available yet. */
-const TOOLS: { id: ToolId; label: string; icon: LucideIcon }[] = [
-  { id: 'select', label: 'Select', icon: MousePointer2 },
+/** The tools. Those without a command arrive in later phases and are shown disabled. */
+const TOOLS: {
+  id: ToolId
+  label: string
+  icon: LucideIcon
+  command?: CommandId
+  shortcut?: string
+}[] = [
+  { id: 'select', label: 'Select', icon: MousePointer2, command: 'tools.select', shortcut: 'V' },
   { id: 'hand', label: 'Pan', icon: Hand },
-  { id: 'highlight', label: 'Highlight', icon: Highlighter },
-  { id: 'comment', label: 'Comment', icon: MessageSquare },
+  {
+    id: 'highlight',
+    label: 'Highlight',
+    icon: Highlighter,
+    command: 'tools.highlight',
+    shortcut: 'H'
+  },
+  {
+    id: 'underline',
+    label: 'Underline',
+    icon: Underline,
+    command: 'tools.underline',
+    shortcut: 'U'
+  },
+  {
+    id: 'strikeout',
+    label: 'Strikeout',
+    icon: Strikethrough,
+    command: 'tools.strikeout',
+    shortcut: 'K'
+  },
+  { id: 'note', label: 'Note', icon: StickyNote, command: 'tools.note', shortcut: 'N' },
   { id: 'text', label: 'Add text', icon: Type },
   { id: 'image', label: 'Add image', icon: Image },
   { id: 'shape', label: 'Add shape', icon: Square },
   { id: 'signature', label: 'Sign', icon: Signature }
 ]
+
+/** The colour of the armed annotation tool (or of highlights, with Select). */
+function ToolColor({ disabled }: { disabled: boolean }): React.JSX.Element {
+  const activeTool = useTools((state) => state.activeTool)
+  const colors = useTools((state) => state.colors)
+  const setColor = useTools((state) => state.setColor)
+  const tool: AnnotationTool =
+    activeTool === 'note' || isMarkupTool(activeTool) ? activeTool : 'highlight'
+  const current = colors[tool]
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild disabled={disabled}>
+            <button
+              type="button"
+              aria-label={`Colour for ${tool}`}
+              aria-disabled={disabled || undefined}
+              className="inline-flex h-8 w-6 shrink-0 items-center justify-center rounded-md outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60 data-[state=open]:bg-accent"
+            >
+              <span
+                className="size-3.5 rounded-full ring-1 ring-black/20"
+                style={{ background: disabled ? 'transparent' : current }}
+              />
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={6}>
+          Colour
+        </TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="start" className="min-w-40">
+        <DropdownMenuLabel className="capitalize">{tool} colour</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={current} onValueChange={(value) => setColor(tool, value)}>
+          {PALETTE.map((swatch) => (
+            <DropdownMenuRadioItem key={swatch.value} value={swatch.value}>
+              <span
+                className="size-3.5 rounded-full ring-1 ring-black/20"
+                style={{ background: swatch.value }}
+                aria-hidden
+              />
+              {swatch.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 const LAYOUTS: { value: LayoutMode; label: string; icon: LucideIcon }[] = [
   { value: 'continuous', label: 'Continuous', icon: Rows2 },
@@ -101,22 +179,30 @@ export function Toolbar(): React.JSX.Element {
         shortcut="Ctrl+O"
         onClick={() => runCommand('file.open')}
       />
-      <ToolbarButton icon={Save} label="Save" shortcut="Ctrl+S" disabled />
+      <ToolbarButton
+        icon={Save}
+        label={tab?.history.modified ? 'Save' : 'Save (no unsaved changes)'}
+        shortcut="Ctrl+S"
+        disabled={none}
+        onClick={() => runCommand('file.save')}
+      />
       <ToolbarButton icon={Printer} label="Print" shortcut="Ctrl+P" disabled />
       <Divider className="max-xl:hidden" />
       <ToolbarButton
         icon={Undo2}
-        label="Undo"
+        label={tab?.history.undoName ? `Undo ${tab.history.undoName}` : 'Undo'}
         shortcut="Ctrl+Z"
-        disabled
+        disabled={!tab?.history.canUndo}
         className="max-xl:hidden"
+        onClick={() => runCommand('edit.undo')}
       />
       <ToolbarButton
         icon={Redo2}
-        label="Redo"
+        label={tab?.history.redoName ? `Redo ${tab.history.redoName}` : 'Redo'}
         shortcut="Ctrl+Y"
-        disabled
+        disabled={!tab?.history.canRedo}
         className="max-xl:hidden"
+        onClick={() => runCommand('edit.redo')}
       />
       <Divider />
 
@@ -225,15 +311,21 @@ export function Toolbar(): React.JSX.Element {
 
       <Divider className="max-[1180px]:hidden" />
       <div className="flex items-center gap-0.5 max-[1180px]:hidden">
-        {TOOLS.map((tool) => (
-          <ToolbarButton
-            key={tool.id}
-            icon={tool.icon}
-            label={tool.label}
-            disabled
-            active={activeTool === tool.id}
-          />
-        ))}
+        {TOOLS.map((tool) => {
+          const command = tool.command
+          return (
+            <ToolbarButton
+              key={tool.id}
+              icon={tool.icon}
+              label={tool.label}
+              shortcut={tool.shortcut}
+              disabled={none || command === undefined}
+              active={!none && activeTool === tool.id}
+              onClick={command ? () => runCommand(command) : undefined}
+            />
+          )
+        })}
+        <ToolColor disabled={none} />
       </div>
 
       <div className="flex-1" />

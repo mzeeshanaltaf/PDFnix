@@ -22,6 +22,11 @@ def test_rotation_changes_the_reported_sizes(client, open_doc, sample_pdf):
         "dirtyPages": [1],
         "pageCount": 3,
         "pages": [{"index": 1, "width": PAGE_HEIGHT, "height": PAGE_WIDTH, "rotation": 90}],
+        "canUndo": True,
+        "canRedo": False,
+        "undoName": "Rotate",
+        "redoName": None,
+        "modified": True,
     }
 
 
@@ -85,7 +90,17 @@ def test_a_full_turn_changes_nothing(client, open_doc, sample_pdf):
 
     body = rotate(client, doc_id, pages=[0], degrees=360).json()
 
-    assert body == {"revision": 0, "dirtyPages": [], "pageCount": 3, "pages": []}
+    assert body == {
+        "revision": 0,
+        "dirtyPages": [],
+        "pageCount": 3,
+        "pages": [],
+        "canUndo": False,
+        "canRedo": False,
+        "undoName": None,
+        "redoName": None,
+        "modified": False,
+    }
 
 
 @pytest.mark.parametrize("degrees", [45, 1, -30])

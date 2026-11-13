@@ -46,6 +46,15 @@ export function shortcutFor(key: KeyInfo, context: KeyContext): ShortcutAction |
     switch (name) {
       case 'o':
         return key.shiftKey ? null : command('file.open')
+      case 's':
+        return command(key.shiftKey ? 'file.saveAs' : 'file.save')
+      case ',':
+        return key.shiftKey ? null : command('file.preferences')
+      // In a text box, undo and redo are the text box's own.
+      case 'z':
+        return context.typing ? null : command(key.shiftKey ? 'edit.redo' : 'edit.undo')
+      case 'y':
+        return context.typing || key.shiftKey ? null : command('edit.redo')
       case 'w':
       case 'F4':
         return key.shiftKey ? null : command('file.closeTab')
@@ -93,10 +102,25 @@ export function shortcutFor(key: KeyInfo, context: KeyContext): ShortcutAction |
       return key.shiftKey ? null : command('view.toggleSidePanel')
   }
 
-  // The rest moves through the document and must not steal keys from a text
-  // box or from a focused button.
+  // The rest moves through the document or picks tools, and must not steal
+  // keys from a text box or from a focused button.
   if (context.typing) return null
   switch (name) {
+    case 'Escape':
+      return command('edit.escape')
+    case 'Delete':
+    case 'Backspace':
+      return key.shiftKey ? null : command('edit.delete')
+    case 'v':
+      return key.shiftKey ? null : command('tools.select')
+    case 'h':
+      return key.shiftKey ? null : command('tools.highlight')
+    case 'u':
+      return key.shiftKey ? null : command('tools.underline')
+    case 'k':
+      return key.shiftKey ? null : command('tools.strikeout')
+    case 'n':
+      return key.shiftKey ? null : command('tools.note')
     case 'ArrowRight':
       return key.shiftKey ? null : command('go.nextPage')
     case 'ArrowLeft':

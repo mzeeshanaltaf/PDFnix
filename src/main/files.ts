@@ -45,6 +45,11 @@ export function rendererIsLoading(): void {
   rendererReady = false
 }
 
+/** The renderer has loaded and taken its pending files, so it can be asked things. */
+export function isRendererReady(): boolean {
+  return rendererReady
+}
+
 /** Asks the renderer to open these files, now or as soon as it is ready. */
 export function openFiles(paths: readonly string[]): void {
   const files = paths.filter(isFile)
@@ -87,6 +92,23 @@ export async function showOpenDialog(): Promise<string[]> {
     ? await dialog.showOpenDialog(window, options)
     : await dialog.showOpenDialog(options)
   return result.canceled ? [] : result.filePaths
+}
+
+/** Save As: where to write the document. Null if the user cancelled. */
+export async function showSaveDialog(defaultPath: unknown): Promise<string | null> {
+  const options: Electron.SaveDialogOptions = {
+    title: 'Save As',
+    defaultPath: typeof defaultPath === 'string' ? defaultPath : undefined,
+    filters: [{ name: 'PDF documents', extensions: ['pdf'] }],
+    properties: ['showOverwriteConfirmation']
+  }
+  const window = getWindow()
+  const result = window
+    ? await dialog.showSaveDialog(window, options)
+    : await dialog.showSaveDialog(options)
+  if (result.canceled || !result.filePath) return null
+  // Windows adds the extension from the filter, but a typed "name." can slip through.
+  return /\.pdf$/i.test(result.filePath) ? result.filePath : `${result.filePath}.pdf`
 }
 
 /** File > Open: show the dialog and open what was chosen. */

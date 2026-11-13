@@ -1,12 +1,14 @@
 import { memo, useState } from 'react'
 import { cn } from 'cn'
 import type { PageInfo, SearchHit } from '@/api/engine'
+import { AnnotationLayer } from './AnnotationLayer'
 import { cssScale, quadBounds, rectToPx, renderScale } from './geometry'
 import { usePageImage } from './hooks'
 import type { PageBox } from './layout'
 import { TextLayer } from './TextLayer'
 
 interface PageViewProps {
+  tabId: string
   docId: string
   page: PageInfo
   /** Where the page sits in the list, in CSS pixels. */
@@ -23,14 +25,17 @@ interface PageViewProps {
   /** Search hits on this page, if any. */
   hits?: readonly SearchHit[]
   activeHit?: SearchHit | null
+  /** The selected annotation, if it is on this page. */
+  selectedAnnotId: number | null
 }
 
 /**
- * One page: the image rendered by the engine, the search highlights and the
- * selectable text on top. Later phases add the annotation, form and edit
- * layers here, above the text layer.
+ * One page: the image rendered by the engine, the search highlights, the
+ * selectable text and the annotation layer on top. Later phases add the form
+ * and edit layers here.
  */
 export const PageView = memo(function PageView({
+  tabId,
   docId,
   page,
   box,
@@ -40,7 +45,8 @@ export const PageView = memo(function PageView({
   devicePixelRatio,
   priority,
   hits,
-  activeHit
+  activeHit,
+  selectedAnnotId
 }: PageViewProps): React.JSX.Element {
   const wanted = renderScale(imageZoom, devicePixelRatio, page)
   const { image, failed, retry } = usePageImage(docId, box.index, revision, wanted, priority)
@@ -115,6 +121,16 @@ export const PageView = memo(function PageView({
         width={page.width}
         height={page.height}
         scale={cssScale(zoom)}
+      />
+      <AnnotationLayer
+        tabId={tabId}
+        docId={docId}
+        page={box.index}
+        revision={revision}
+        zoom={zoom}
+        width={page.width}
+        height={page.height}
+        selectedId={selectedAnnotId}
       />
     </div>
   )

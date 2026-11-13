@@ -1,11 +1,12 @@
 /**
- * The words of each page, for the text layer. Fetched lazily for pages that
- * are on screen and kept in a small least-recently-used cache.
+ * Per-page data fetched from the engine for the pages on screen: the words of
+ * the text layer, the annotations. Cached by document, page and the page's
+ * revision (so a changed page fetches afresh), least recently used first out.
  */
 
-import { engine, isAbortError, type PageText } from '@/api/engine'
+import { engine, isAbortError, type Annotation, type PageText } from '@/api/engine'
 
-export type TextFetcher = (docId: string, page: number, signal: AbortSignal) => Promise<PageText>
+export type PageFetcher<T> = (docId: string, page: number, signal: AbortSignal) => Promise<T>
 
 interface Pending {
   waiters: number
@@ -16,15 +17,16 @@ function keyOf(docId: string, page: number, revision: number): string {
   return `${docId}|${page}|${revision}`
 }
 
-export class PageTextStore {
+export class PageDataStore<T> {
   /** In least-recently-used order. */
-  private readonly entries = new Map<string, PageText>()
+  private readonly entries = new Map<string, T>()
   private readonly pending = new Map<string, Pending>()
   private readonly listeners = new Set<() => void>()
 
   constructor(
-    private readonly fetcher: TextFetcher,
-    private readonly maxPages: number
+    private readonly fetcher: PageFetcher<T>,
+    private readonly maxPages: number,
+    private readonly what = 'page data'
   ) {}
 
   get size(): number {
@@ -38,11 +40,32 @@ export class PageTextStore {
     }
   }
 
-  peek(docId: string, page: number, revision: number): PageText | null {
+  private notify(): void {
+    for (const listener of [...this.listeners]) listener()
+  }
+
+  peek(docId: string, page: number, revision: number): T | null {
     return this.entries.get(keyOf(docId, page, revision)) ?? null
   }
 
-  /** Loads a page's text unless it is cached. Returns a function that withdraws the request. */
+  /** Puts a value in the cache that is already known (for example from a mutation). */
+  put(docId: string, page: number, revision: number, value: T): void {
+    const key = keyOf(docId, page, revision)
+    this.entries.delete(key)
+    this.entries.set(key, value)
+    this.trim()
+    this.notify()
+  }
+
+  private trim(): void {
+    while (this.entries.size > this.maxPages) {
+      const oldest = this.entries.keys().next().value
+      if (oldest === undefined) break
+      this.entries.delete(oldest)
+    }
+  }
+
+  /** Loads a page's data unless it is cached. Returns a function that withdraws the request. */
   request(docId: string, page: number, revision: number): () => void {
     const key = keyOf(docId, page, revision)
     const cached = this.entries.get(key)
@@ -58,20 +81,16 @@ export class PageTextStore {
       waiting = started
       this.pending.set(key, started)
       this.fetcher(docId, page, started.controller.signal)
-        .then((text) => {
+        .then((value) => {
           if (this.pending.get(key) !== started) return
           this.pending.delete(key)
-          this.entries.set(key, text)
-          while (this.entries.size > this.maxPages) {
-            const oldest = this.entries.keys().next().value
-            if (oldest === undefined) break
-            this.entries.delete(oldest)
-          }
-          for (const listener of [...this.listeners]) listener()
+          this.entries.set(key, value)
+          this.trim()
+          this.notify()
         })
         .catch((error: unknown) => {
           if (this.pending.get(key) === started) this.pending.delete(key)
-          if (!isAbortError(error)) console.warn('Could not load page text', error)
+          if (!isAbortError(error)) console.warn(`Could not load ${this.what}`, error)
         })
     }
     waiting.waiters += 1
@@ -102,7 +121,14 @@ export class PageTextStore {
   }
 }
 
-export const pageTexts = new PageTextStore(
+export const pageTexts = new PageDataStore<PageText>(
   (docId, page, signal) => engine.pageText(docId, page, signal),
-  120
+  120,
+  'page text'
+)
+
+export const pageAnnotations = new PageDataStore<Annotation[]>(
+  (docId, page, signal) => engine.annotations(docId, page, signal),
+  200,
+  'annotations'
 )

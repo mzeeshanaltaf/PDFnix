@@ -22,6 +22,10 @@ export interface TextSpan {
   /** Clockwise, in degrees: 0, 90, 180 or 270. */
   rotation: 0 | 90 | 180 | 270
   endOfLine: boolean
+  /** The word's own box (the span may reach further, to the next word). */
+  bbox: Rect
+  /** Characters of `text` that belong to the word (without the trailing space). */
+  wordLength: number
 }
 
 /** A gap wider than this many line heights is a column break, not a space. */
@@ -79,7 +83,9 @@ export function layoutLine(line: TextLine): TextSpan[] {
       length,
       thickness: current.thickness,
       rotation,
-      endOfLine
+      endOfLine,
+      bbox: word.bbox,
+      wordLength: word.text.length
     })
   })
 

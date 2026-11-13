@@ -148,6 +148,8 @@ export class EngineManager extends EventEmitter<EngineManagerEvents> {
           PDFENGINE_TOKEN: token,
           PDFENGINE_PARENT_PID: String(process.pid),
           PDFENGINE_ALLOWED_ORIGINS: this.allowedOrigins.join(','),
+          // Copies of documents with unsaved changes, offered after a crash.
+          PDFENGINE_RECOVERY_DIR: join(app.getPath('userData'), 'recovery'),
           PYTHONUNBUFFERED: '1',
           PYTHONIOENCODING: 'utf-8'
         },

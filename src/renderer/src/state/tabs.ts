@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import type { LayoutMode } from '../../../shared/api'
 import type {
+  HistoryState,
   MutationResult,
   OpenedDocument,
   OutlineEntry,
   PageInfo,
+  SavedDocument,
   SearchHit
 } from '../api/engine'
 import { clampZoom, type ZoomMode } from '../viewer/zoom'
@@ -25,6 +27,12 @@ export interface SearchState {
   error: string | null
 }
 
+/** An annotation chosen with the select tool. */
+export interface SelectedAnnotation {
+  annotId: number
+  page: number
+}
+
 /** One open document. Each tab corresponds to one engine session. */
 export interface DocumentTab {
   /** Identifies the tab for as long as it is open. */
@@ -43,6 +51,9 @@ export interface DocumentTab {
   revision: number
   /** Per page, the revision that last changed it. Page images are cached by this. */
   pageRevisions: number[]
+  /** Undo/redo and unsaved-changes state, as the engine last reported it. */
+  history: HistoryState
+  selectedAnnotation: SelectedAnnotation | null
 
   /** Current page, 0-based. */
   page: number
@@ -81,15 +92,27 @@ interface TabsState {
   patchTab: (id: string, patch: Partial<DocumentTab>) => void
   setPage: (id: string, page: number) => void
   setZoom: (id: string, zoom: number, mode?: ZoomMode) => void
-  /** Records the result of a call that changed the document. */
-  applyMutation: (
-    id: string,
-    result: MutationResult,
-    pages?: readonly (PageInfo & { index: number })[]
-  ) => void
+  /**
+   * Records the result of a call that changed the document: new revision,
+   * page sizes (from `result.pages`), dirty pages and undo state.
+   */
+  applyMutation: (id: string, result: MutationResult) => void
+  /** Records a save: the file the tab now belongs to and its unsaved state. */
+  applySaved: (id: string, saved: SavedDocument) => void
   /** Points the tab at a new engine session of the same file (engine restart). */
   rebindTab: (id: string, opened: OpenedDocument) => void
   patchSearch: (id: string, patch: Partial<SearchState>) => void
+  selectAnnotation: (id: string, selection: SelectedAnnotation | null) => void
+}
+
+function historyOf(state: HistoryState): HistoryState {
+  return {
+    canUndo: state.canUndo,
+    canRedo: state.canRedo,
+    undoName: state.undoName,
+    redoName: state.redoName,
+    modified: state.modified
+  }
 }
 
 let nextTabNumber = 1
@@ -130,6 +153,8 @@ export const useTabs = create<TabsState>((set, get) => {
         pages: opened.pages,
         revision: opened.revision,
         pageRevisions: opened.pages.map(() => opened.revision),
+        history: historyOf(opened),
+        selectedAnnotation: null,
         page: 0,
         zoom: 1,
         zoomMode: 'custom',
@@ -184,11 +209,11 @@ export const useTabs = create<TabsState>((set, get) => {
         return { ...tab, zoom: clamped, zoomMode }
       }),
 
-    applyMutation: (id, result, changedPages) =>
+    applyMutation: (id, result) =>
       update(id, (tab) => {
         const pages = tab.pages.slice()
         const pageRevisions = tab.pageRevisions.slice()
-        for (const changed of changedPages ?? []) {
+        for (const changed of result.pages ?? []) {
           if (changed.index >= 0 && changed.index < pages.length) {
             pages[changed.index] = {
               width: changed.width,
@@ -205,8 +230,32 @@ export const useTabs = create<TabsState>((set, get) => {
           revision: result.revision,
           pageCount: result.pageCount,
           pages,
-          pageRevisions
+          pageRevisions,
+          history: historyOf(result)
         }
+      }),
+
+    applySaved: (id, saved) =>
+      update(id, (tab) => ({
+        ...tab,
+        filePath: saved.path,
+        fileName: saved.fileName,
+        history: historyOf(saved)
+      })),
+
+    selectAnnotation: (id, selection) =>
+      update(id, (tab) => {
+        const current = tab.selectedAnnotation
+        if (
+          current === selection ||
+          (current &&
+            selection &&
+            current.annotId === selection.annotId &&
+            current.page === selection.page)
+        ) {
+          return tab
+        }
+        return { ...tab, selectedAnnotation: selection }
       }),
 
     rebindTab: (id, opened) =>
@@ -222,6 +271,8 @@ export const useTabs = create<TabsState>((set, get) => {
         pages: opened.pages,
         revision: opened.revision,
         pageRevisions: opened.pages.map(() => opened.revision),
+        history: historyOf(opened),
+        selectedAnnotation: null,
         page: clampPage(tab.page, opened.pageCount),
         // Hits were found in the old session; positions may no longer hold.
         search: { ...tab.search, status: 'idle', hits: [], truncated: false, activeIndex: -1 },

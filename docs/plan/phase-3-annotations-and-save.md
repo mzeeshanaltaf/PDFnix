@@ -22,6 +22,13 @@ Not included: free text, shapes, ink, images, signatures (phase 4).
 
 Fallback, if journalling turns out not to cover an operation type reliably with the pinned PyMuPDF version: keep a per-operation snapshot of the document bytes (bounded stack, e.g. 30 steps) and restore from it. Decide this early in the phase with a spike test, because every later phase relies on it.
 
+**Decided (spike, 2026-11-13): journalling.** Rules every later phase must follow (details and evidence in STATUS.md, Verified facts):
+
+- Make every change inside `with session.edit("Name") as step:` (adds the touched pages to `step.pages`), then `return session.mutated(step.pages)`. Validate input before the block. Any change outside an operation raises.
+- Read text and images only through `textpages.py` (`text_page`, `image_rects`, `has_text`). PyMuPDF's own `get_text`/`get_textpage`/`search_for`/`get_image_info` briefly change rotated pages and fail under the journal. The same is likely true of `get_textpage_ocr` (phase 6): check it.
+- Never write the working document except through `History.serialise()`, which repairs what MuPDF's writer does to the journal. Never write it with `garbage` ≥ 2; compact a throwaway copy instead (as `save.py` does).
+- Annotation geometry: read with `mupdf.pdf_bound_annot`, place by displayed-space offsets (see `annotations.py`).
+
 ## Engine
 
 New modules: `annotations.py`, `history.py`, `save.py`.
@@ -34,7 +41,8 @@ New modules: `annotations.py`, `history.py`, `save.py`.
 | `DELETE /v1/docs/{id}/annotations/{annotId}` | Delete |
 | `POST /v1/docs/{id}/undo`, `/redo` | Returns the mutation response plus `{ canUndo, canRedo, undoName, redoName }` |
 | `POST /v1/docs/{id}/save` `{ path? }` | Save to the original path, or to `path` for Save As |
-| `GET /v1/docs/{id}/state` | `{ revision, savedRevision, canUndo, canRedo }` |
+| `GET /v1/docs/{id}/state` | `{ path, fileName, revision, canUndo, canRedo, undoName, redoName, modified }` (changed from `savedRevision`: see STATUS.md) |
+| `GET /v1/recovery`, `POST /v1/recovery/{id}/open`, `DELETE /v1/recovery/{id}` | Recovery copies (added; see STATUS.md) |
 
 Notes:
 

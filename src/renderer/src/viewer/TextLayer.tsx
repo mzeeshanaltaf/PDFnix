@@ -2,6 +2,7 @@ import { memo, useEffect, useRef } from 'react'
 import type { PageText } from '@/api/engine'
 import { usePageText } from './hooks'
 import {
+  describeSpan,
   END_OF_CONTENT_CLASS,
   END_OF_LINE_ATTRIBUTE,
   registerTextLayer,
@@ -36,12 +37,19 @@ function unitWidth(text: string): number {
  * Fills `layer` with one transparent span per word, positioned in points
  * (the layer itself is scaled to the zoom). Returns the cleanup.
  */
-function mount(layer: HTMLElement, text: PageText): () => void {
+function mount(layer: HTMLElement, page: number, text: PageText): () => void {
   const fragment = document.createDocumentFragment()
-  for (const line of text.lines) {
+  text.lines.forEach((line, lineIndex) => {
     for (const span of layoutLine(line)) {
       const element = document.createElement('span')
       element.textContent = span.text
+      describeSpan(element, {
+        page,
+        line: lineIndex,
+        angle: line.angle,
+        bbox: span.bbox,
+        length: span.wordLength
+      })
       const fontSize = span.thickness * FONT_RATIO
       const natural = unitWidth(span.text) * fontSize
       const stretch = natural > 0 ? span.length / natural : 1
@@ -53,7 +61,7 @@ function mount(layer: HTMLElement, text: PageText): () => void {
       if (span.endOfLine) element.setAttribute(END_OF_LINE_ATTRIBUTE, '')
       fragment.append(element)
     }
-  }
+  })
   const end = document.createElement('div')
   end.className = END_OF_CONTENT_CLASS
   fragment.append(end)
@@ -100,8 +108,8 @@ export const TextLayer = memo(function TextLayer({
   useEffect(() => {
     const layer = ref.current
     if (!layer || !text) return
-    return mount(layer, text)
-  }, [text])
+    return mount(layer, page, text)
+  }, [page, text])
 
   return (
     <div

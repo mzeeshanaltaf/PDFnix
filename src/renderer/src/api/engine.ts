@@ -61,7 +61,18 @@ export interface PageInfo {
   rotation: number
 }
 
-export interface OpenedDocument {
+/** Undo/redo and save state of a document; part of most responses. */
+export interface HistoryState {
+  canUndo: boolean
+  canRedo: boolean
+  /** Name of the step Undo would take back ("Highlight"), or null. */
+  undoName: string | null
+  redoName: string | null
+  /** The document differs from its file. */
+  modified: boolean
+}
+
+export interface OpenedDocument extends HistoryState {
   docId: string
   path: string
   fileName: string
@@ -71,6 +82,90 @@ export interface OpenedDocument {
   isEncrypted: boolean
   hasTextLayer: boolean
   revision: number
+}
+
+export type AnnotationType =
+  | 'highlight'
+  | 'underline'
+  | 'strikeout'
+  | 'note'
+  | 'squiggly'
+  | 'freetext'
+  | 'ink'
+  | 'square'
+  | 'circle'
+  | 'line'
+  | 'polygon'
+  | 'polyline'
+  | 'stamp'
+  | 'caret'
+  | 'attachment'
+  | 'redact'
+  | (string & {})
+
+export type MarkupType = 'highlight' | 'underline' | 'strikeout'
+
+export interface Annotation {
+  /** Stable for the life of the engine session. */
+  annotId: number
+  page: number
+  type: AnnotationType
+  /** What the annotation covers on the displayed page. */
+  rect: Rect
+  /** Text markup only. */
+  quads?: Quad[]
+  /** `#rrggbb`, or null if it has none. */
+  color: string | null
+  opacity: number
+  contents: string
+  author: string
+  /** ISO 8601, or null. */
+  createdAt: string | null
+  modifiedAt: string | null
+}
+
+export type NewAnnotation =
+  | {
+      type: MarkupType
+      page: number
+      quads: Quad[]
+      color: string
+      author?: string
+      contents?: string
+    }
+  | {
+      type: 'note'
+      page: number
+      /** Where the note's top-left corner goes. */
+      point: [number, number]
+      color: string
+      author?: string
+      contents?: string
+    }
+
+export interface AnnotationChange {
+  contents?: string
+  color?: string
+  opacity?: number
+  /** Move (notes): the annotation's new top-left corner is `rect[0], rect[1]`. */
+  rect?: Rect
+}
+
+export interface SavedDocument extends HistoryState {
+  path: string
+  fileName: string
+  revision: number
+}
+
+export interface RecoveryEntry {
+  recoveryId: string
+  originalPath: string
+  fileName: string
+  isEncrypted: boolean
+  pageCount: number | null
+  /** ISO 8601. */
+  writtenAt: string | null
+  size: number
 }
 
 export interface TextWord {
@@ -150,16 +245,25 @@ export interface SearchResult {
   truncated: boolean
 }
 
-/** What every call that changes a document returns. */
-export interface MutationResult {
+/** What every call that changes a document returns (also undo and redo). */
+export interface MutationResult extends HistoryState {
   revision: number
   dirtyPages: number[]
   pageCount: number
+  /** Size and rotation of each dirty page. */
+  pages: (PageInfo & { index: number })[]
 }
 
-export interface RotateResult extends MutationResult {
-  /** The new size of each rotated page. */
-  pages: (PageInfo & { index: number })[]
+export type RotateResult = MutationResult
+
+export interface AnnotationResult extends MutationResult {
+  annotation: Annotation
+}
+
+export interface UndoResult extends MutationResult {
+  /** The step that was undone or redone. */
+  undone?: string
+  redone?: string
 }
 
 export type ImageFormat = 'auto' | 'png' | 'jpeg'
@@ -296,5 +400,55 @@ export const engine = {
   rotatePages: (docId: string, degrees: number, pages?: number[]): Promise<RotateResult> =>
     request<RotateResult>('POST', `${doc(docId)}/pages/rotate`, {
       body: pages === undefined ? { degrees } : { degrees, pages }
-    })
+    }),
+
+  /** The annotations of one page, or of the whole document. */
+  annotations: (docId: string, page?: number, signal?: AbortSignal): Promise<Annotation[]> =>
+    request<Annotation[]>(
+      'GET',
+      `${doc(docId)}/annotations${page === undefined ? '' : `?page=${page}`}`,
+      { signal }
+    ),
+
+  createAnnotation: (docId: string, annotation: NewAnnotation): Promise<AnnotationResult> =>
+    request<AnnotationResult>('POST', `${doc(docId)}/annotations`, { body: annotation }),
+
+  /** `page` is where the annotation is (saves the engine a search). */
+  updateAnnotation: (
+    docId: string,
+    annotId: number,
+    page: number,
+    change: AnnotationChange
+  ): Promise<AnnotationResult> =>
+    request<AnnotationResult>('PATCH', `${doc(docId)}/annotations/${annotId}?page=${page}`, {
+      body: change
+    }),
+
+  deleteAnnotation: (docId: string, annotId: number, page: number): Promise<MutationResult> =>
+    request<MutationResult>('DELETE', `${doc(docId)}/annotations/${annotId}?page=${page}`),
+
+  undo: (docId: string): Promise<UndoResult> => request<UndoResult>('POST', `${doc(docId)}/undo`),
+
+  redo: (docId: string): Promise<UndoResult> => request<UndoResult>('POST', `${doc(docId)}/redo`),
+
+  /**
+   * Saves to the document's own file, or to `path` (Save As). Errors carry
+   * codes such as `file_locked`, `file_read_only`, `disk_full`.
+   */
+  save: (docId: string, path?: string): Promise<SavedDocument> =>
+    request<SavedDocument>('POST', `${doc(docId)}/save`, {
+      body: path === undefined ? {} : { path }
+    }),
+
+  /** Recovery copies of documents with unsaved changes from an earlier run. */
+  recoveryEntries: (): Promise<RecoveryEntry[]> => request<RecoveryEntry[]>('GET', '/recovery'),
+
+  /** Opens a recovery copy like `openDocument`; the result has unsaved changes. */
+  restoreRecovery: (recoveryId: string, password?: string): Promise<OpenedDocument> =>
+    request<OpenedDocument>('POST', `/recovery/${encodeURIComponent(recoveryId)}/open`, {
+      body: password === undefined ? {} : { password }
+    }),
+
+  discardRecovery: (recoveryId: string): Promise<{ discarded: boolean }> =>
+    request('DELETE', `/recovery/${encodeURIComponent(recoveryId)}`)
 }

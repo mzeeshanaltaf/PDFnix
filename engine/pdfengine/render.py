@@ -12,6 +12,7 @@ from typing import Literal
 import pymupdf
 
 from .sessions import Session
+from .textpages import image_rects
 
 ImageFormat = Literal["auto", "png", "jpeg"]
 
@@ -48,8 +49,8 @@ def _is_picture(page: pymupdf.Page) -> bool:
     if page_area <= 0:
         return False
     covered = 0.0
-    for image in page.get_image_info():
-        covered += (pymupdf.Rect(image["bbox"]) & page.rect).get_area()
+    for rect in image_rects(page):
+        covered += (rect & page.rect).get_area()
         if covered >= PICTURE_COVERAGE * page_area:
             return True
     return False

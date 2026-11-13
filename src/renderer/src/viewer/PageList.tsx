@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { cn } from 'cn'
 import type { Rect, SearchHit } from '@/api/engine'
 import { getTab, useTabs, type DocumentTab } from '@/state/tabs'
+import { useTools } from '@/state/tools'
 import { registerViewer, type ViewerHandle } from './controller'
 import type { Point, Size } from './geometry'
 import { useDevicePixelRatio, useSettled } from './hooks'
@@ -404,6 +406,7 @@ export function PageList({ tab }: { tab: DocumentTab }): React.JSX.Element {
     return map
   }, [tab.search.hits])
   const activeHit = tab.search.hits[tab.search.activeIndex] ?? null
+  const activeTool = useTools((state) => state.activeTool)
 
   const pages: React.JSX.Element[] = []
   if (range && measured) {
@@ -415,6 +418,7 @@ export function PageList({ tab }: { tab: DocumentTab }): React.JSX.Element {
         pages.push(
           <PageView
             key={box.index}
+            tabId={tab.id}
             docId={tab.docId}
             page={tab.pages[box.index]}
             box={box}
@@ -425,6 +429,9 @@ export function PageList({ tab }: { tab: DocumentTab }): React.JSX.Element {
             priority={inView ? IMAGE_PRIORITY.visible : IMAGE_PRIORITY.nearby}
             hits={pageHits}
             activeHit={pageHits && activeHit?.page === box.index ? activeHit : null}
+            selectedAnnotId={
+              tab.selectedAnnotation?.page === box.index ? tab.selectedAnnotation.annotId : null
+            }
           />
         )
       }
@@ -434,7 +441,7 @@ export function PageList({ tab }: { tab: DocumentTab }): React.JSX.Element {
   return (
     <div
       ref={scrollerRef}
-      className="pdf-scroller"
+      className={cn('pdf-scroller', `tool-${activeTool}`)}
       tabIndex={-1}
       onScroll={sync}
       data-tab-id={tab.id}

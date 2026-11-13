@@ -1,7 +1,14 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
 import { join } from 'path'
 import { EngineManager, type EngineStartError } from './engine'
-import { initFiles, onRecentChanged, openFromArgv, rendererIsLoading } from './files'
+import { IPC } from '../shared/api'
+import {
+  initFiles,
+  isRendererReady,
+  onRecentChanged,
+  openFromArgv,
+  rendererIsLoading
+} from './files'
 import { registerIpc } from './ipc'
 import { buildMenu, initMenu } from './menu'
 import { applySavedTheme, onThemeChanged, windowBackground } from './theme'
@@ -17,6 +24,28 @@ if (!app.isPackaged) {
 
 let mainWindow: BrowserWindow | null = null
 let engineDialogOpen = false
+/** The renderer has dealt with unsaved changes; closing may go ahead. */
+let closeConfirmed = false
+
+/**
+ * Asks the renderer to deal with unsaved changes before the window closes.
+ * Returns false if it cannot be asked (not loaded, crashed), in which case
+ * the window simply closes.
+ */
+function askRendererToClose(window: BrowserWindow): boolean {
+  if (closeConfirmed || window.isDestroyed()) return false
+  const contents = window.webContents
+  if (contents.isCrashed() || contents.isLoading() || !isRendererReady()) return false
+  contents.send(IPC.appCloseRequest)
+  return true
+}
+
+/** The renderer says closing is fine (changes saved or deliberately dropped). */
+function confirmClose(): void {
+  closeConfirmed = true
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close()
+  else app.quit()
+}
 
 function rendererOrigins(): string[] {
   // A page loaded from file:// sends the origin "null".
@@ -43,6 +72,9 @@ function createWindow(): BrowserWindow {
   })
 
   window.once('ready-to-show', () => window.show())
+  window.on('close', (event) => {
+    if (askRendererToClose(window)) event.preventDefault()
+  })
   window.on('closed', () => {
     if (mainWindow === window) mainWindow = null
   })
@@ -111,7 +143,12 @@ if (!app.requestSingleInstanceLock()) {
     openFromArgv(argv, workingDirectory)
   })
 
-  app.on('before-quit', () => engine.stop())
+  // File > Exit and other quits go through the same unsaved-changes check
+  // as closing the window. The engine is only stopped once quitting is certain.
+  app.on('before-quit', (event) => {
+    if (mainWindow && askRendererToClose(mainWindow)) event.preventDefault()
+  })
+  app.on('will-quit', () => engine.stop())
   // Last resort if the app exits without the normal quit sequence.
   process.on('exit', () => engine.stop())
 
@@ -122,7 +159,7 @@ if (!app.requestSingleInstanceLock()) {
 
     applySavedTheme()
     initFiles(() => mainWindow)
-    registerIpc(engine)
+    registerIpc(engine, confirmClose)
     initMenu(() => mainWindow)
     onThemeChanged(buildMenu)
     onRecentChanged(buildMenu)

@@ -63,6 +63,27 @@ class PasswordIncorrectError(EngineError):
         super().__init__("password_incorrect", "The password is not correct.", 401)
 
 
+class SaveError(EngineError):
+    """Saving failed; the file on disk is unchanged.
+
+    Codes: ``file_locked`` (open in another program), ``file_read_only``,
+    ``folder_not_found``, ``folder_not_writable``, ``disk_full``,
+    ``save_failed`` (anything else).
+    """
+
+    _STATUS = {
+        "file_locked": 409,
+        "file_read_only": 403,
+        "folder_not_found": 404,
+        "folder_not_writable": 403,
+        "disk_full": 507,
+        "save_failed": 500,
+    }
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(code, message, self._STATUS.get(code, 500))
+
+
 _STATUS_CODES = {
     400: "bad_request",
     401: "unauthorized",

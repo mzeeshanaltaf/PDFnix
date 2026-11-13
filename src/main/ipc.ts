@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
-import { IPC, isLayoutMode, isThemeSource, type MenuState } from '../shared/api'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { IPC, isLayoutMode, isThemeSource, type MenuState, type UnsavedChoice } from '../shared/api'
 import type { EngineManager } from './engine'
 import {
   addRecent,
@@ -7,31 +7,72 @@ import {
   listRecent,
   removeRecent,
   showOpenDialog,
+  showSaveDialog,
   takePending
 } from './files'
 import { setMenuState } from './menu'
+import { getUserSettings, setUserSettings } from './settings'
 import { changeTheme, currentTheme } from './theme'
+
+function text(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
 
 function toMenuState(value: unknown): MenuState {
   const candidate = (typeof value === 'object' && value !== null ? value : {}) as Partial<MenuState>
   return {
     hasDocument: candidate.hasDocument === true,
-    layout: isLayoutMode(candidate.layout) ? candidate.layout : null
+    layout: isLayoutMode(candidate.layout) ? candidate.layout : null,
+    canUndo: candidate.canUndo === true,
+    canRedo: candidate.canRedo === true,
+    undoName: text(candidate.undoName),
+    redoName: text(candidate.redoName),
+    canDelete: candidate.canDelete === true
   }
 }
 
+async function confirmUnsaved(
+  window: BrowserWindow | null,
+  fileName: unknown
+): Promise<UnsavedChoice> {
+  const name = typeof fileName === 'string' && fileName ? fileName : 'this document'
+  const options = {
+    type: 'warning' as const,
+    title: app.getName(),
+    message: `Do you want to save the changes to ${name}?`,
+    detail: "Your changes will be lost if you don't save them.",
+    buttons: ['Save', "Don't Save", 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+    noLink: true
+  }
+  const { response } = window
+    ? await dialog.showMessageBox(window, options)
+    : await dialog.showMessageBox(options)
+  return response === 0 ? 'save' : response === 1 ? 'discard' : 'cancel'
+}
+
 /** Registers every IPC handler behind `window.api` and forwards engine status. */
-export function registerIpc(engine: EngineManager): void {
+export function registerIpc(engine: EngineManager, onConfirmClose: () => void): void {
   ipcMain.handle(IPC.engineGetConnection, () => engine.getConnection())
   ipcMain.handle(IPC.engineGetStatus, () => engine.getStatus())
   ipcMain.handle(IPC.appGetVersion, () => app.getVersion())
+  ipcMain.on(IPC.appConfirmClose, () => onConfirmClose())
   ipcMain.handle(IPC.themeGet, () => currentTheme())
   ipcMain.handle(IPC.themeSet, (_event, theme: unknown) => {
     if (!isThemeSource(theme)) throw new Error(`Invalid theme: ${String(theme)}`)
     return changeTheme(theme)
   })
+  ipcMain.handle(IPC.settingsGet, () => getUserSettings())
+  ipcMain.handle(IPC.settingsSet, (_event, patch: unknown) => setUserSettings(patch))
+  ipcMain.handle(IPC.dialogsConfirmUnsaved, (event, fileName: unknown) =>
+    confirmUnsaved(BrowserWindow.fromWebContents(event.sender), fileName)
+  )
 
   ipcMain.handle(IPC.filesShowOpenDialog, () => showOpenDialog())
+  ipcMain.handle(IPC.filesShowSaveDialog, (_event, defaultPath: unknown) =>
+    showSaveDialog(defaultPath)
+  )
   ipcMain.handle(IPC.filesTakePending, () => takePending())
   ipcMain.handle(IPC.filesGetRecent, () => listRecent())
   ipcMain.handle(IPC.filesAddRecent, (_event, path: unknown) => {

@@ -12,7 +12,10 @@ process-wide lock, ``MUPDF_LOCK``, reachable as ``Session.lock``.
 
 import os
 import threading
+import time
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import pymupdf
@@ -25,6 +28,8 @@ from .errors import (
     PasswordIncorrectError,
     PasswordRequiredError,
 )
+from .history import History, Step
+from .textpages import has_text
 
 MUPDF_LOCK = threading.RLock()
 
@@ -59,15 +64,26 @@ class Session:
         self.file_size = file_size
         #: True if the file needed a password to open.
         self.encrypted = encrypted
-        #: Kept so a later save can preserve the encryption (phase 3).
+        #: Kept so a compacted copy can be opened when saving.
         self.password = password
-        #: Increases with every change to the document.
+        #: Increases with every change to the document, including undo and redo.
         self.revision = 0
         self._doc: pymupdf.Document | None = doc
+        self.history = History(doc)
+        #: When the oldest change not yet in a recovery copy was made
+        #: (``time.monotonic``), or None. Maintained with ``recovered_revision``
+        #: by ``recovery.py``.
+        self.unrecovered_since: float | None = None
+        #: The revision the current recovery copy holds, or None if there is none.
+        self.recovered_revision: int | None = None
 
     @property
     def lock(self) -> threading.RLock:
         return MUPDF_LOCK
+
+    @property
+    def closed(self) -> bool:
+        return self._doc is None
 
     @property
     def doc(self) -> pymupdf.Document:
@@ -96,18 +112,60 @@ class Session:
         with self.lock:
             doc = self.doc
             for index in range(min(doc.page_count, TEXT_PROBE_PAGES)):
-                if doc[index].get_text("text").strip():
+                if has_text(doc[index]):
                     return True
         return False
 
-    def mutated(self, dirty_pages: list[int]) -> dict[str, Any]:
-        """Records a change and returns the standard mutation response."""
+    @contextmanager
+    def edit(self, name: str) -> Iterator[Step]:
+        """Holds the lock and records the changes made in the block as one
+        undoable step named ``name`` ("Highlight", "Rotate"…). Add the pages
+        the change touches to the yielded step's ``pages``, then return
+        ``mutated(step.pages)``.
+
+        Validate input *before* the block where possible: a change that fails
+        half way is undone, but costs the user their redo steps.
+        """
+        with self.lock, self.history.operation(name) as step:
+            yield step
+
+    def state(self) -> dict[str, Any]:
+        """Revision and undo/redo state."""
+        with self.lock:
+            return {"revision": self.revision, **self.history.state()}
+
+    def mutated(self, dirty_pages: set[int] | list[int]) -> dict[str, Any]:
+        """Records a change and returns the standard mutation response:
+        ``revision``, ``dirtyPages``, ``pageCount``, ``pages`` (size and
+        rotation of each dirty page) and the undo/redo state."""
         with self.lock:
             self.revision += 1
+            if self.unrecovered_since is None:
+                self.unrecovered_since = time.monotonic()
+            doc = self.doc
+            dirty = sorted(index for index in set(dirty_pages) if 0 <= index < doc.page_count)
             return {
                 "revision": self.revision,
-                "dirtyPages": sorted(set(dirty_pages)),
-                "pageCount": self.doc.page_count,
+                "dirtyPages": dirty,
+                "pageCount": doc.page_count,
+                "pages": [{"index": index, **page_info(doc[index])} for index in dirty],
+                **self.history.state(),
+            }
+
+    def describe(self) -> dict[str, Any]:
+        """What the app needs to show a freshly opened document."""
+        with self.lock:
+            metadata = self.doc.metadata or {}
+            return {
+                "docId": self.id,
+                "path": self.path,
+                "fileName": os.path.basename(self.path),
+                "pageCount": self.page_count,
+                "pages": self.page_infos(),
+                "title": str(metadata.get("title") or "").strip(),
+                "isEncrypted": self.encrypted,
+                "hasTextLayer": self.has_text_layer(),
+                **self.state(),
             }
 
     def close(self) -> None:
@@ -131,7 +189,11 @@ def open_session(path: str, password: str | None = None) -> Session:
         if os.path.isdir(path):
             raise FileNotFound(path) from None
         raise FileUnreadableError(path, exc.strerror or type(exc).__name__) from None
+    return open_bytes(data, path, password)
 
+
+def open_bytes(data: bytes, path: str, password: str | None = None) -> Session:
+    """Opens PDF ``data`` as a session for the file at ``path``."""
     with MUPDF_LOCK:
         try:
             doc = pymupdf.open(stream=data, filetype="pdf")
@@ -200,6 +262,10 @@ class SessionRegistry:
     def ids(self) -> list[str]:
         with self._lock:
             return list(self._sessions)
+
+    def values(self) -> list[Session]:
+        with self._lock:
+            return list(self._sessions.values())
 
     def close_all(self) -> None:
         with self._lock:

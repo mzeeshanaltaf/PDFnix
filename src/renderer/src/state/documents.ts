@@ -1,23 +1,33 @@
 /**
- * Everything the app does with documents that involves the engine: opening
- * and closing them, rotating pages, searching. The tab store itself
- * (`tabs.ts`) only holds state; the calls and their error handling are here.
+ * Everything the app does with whole documents that involves the engine:
+ * opening, saving and closing them, recovery copies, searching. The tab store
+ * itself (`tabs.ts`) only holds state; the calls and their error handling are
+ * here. Changes to a document's content are in `edits.ts`.
  */
 
 import { toast } from 'sonner'
-import { engine, EngineApiError, isAbortError, type SearchHit } from '../api/engine'
+import {
+  engine,
+  EngineApiError,
+  isAbortError,
+  type OpenedDocument,
+  type RecoveryEntry
+} from '../api/engine'
 import { getViewer } from '../viewer/controller'
-import { quadBounds, rotateQuad } from '../viewer/geometry'
+import { quadBounds } from '../viewer/geometry'
 import { pageImages } from '../viewer/pageImages'
-import { pageTexts } from '../viewer/pageText'
+import { pageAnnotations, pageTexts } from '../viewer/pageText'
 import { forgetViewPosition } from '../viewer/viewPositions'
 import { askPassword, closePasswordPrompt, useDialogs } from './dialogs'
 import { useEngine } from './engine'
 import { findTabByPath, getTab, selectActiveTab, useTabs, type SearchState } from './tabs'
+import { useTools } from './tools'
 
 const APP_NAME = 'PDFnix'
 /** Typing in the search box searches after this pause. */
 const SEARCH_DELAY_MS = 250
+/** Save errors that Save As can get around. */
+const SAVE_AS_HELPS = new Set(['file_locked', 'file_read_only', 'folder_not_writable'])
 
 /**
  * Passwords of the protected documents that are open, by tab. They are needed
@@ -46,7 +56,50 @@ function isPasswordError(error: unknown): error is EngineApiError {
   )
 }
 
-// --- opening and closing -----------------------------------------------------
+function engineConnected(): boolean {
+  return useEngine.getState().link === 'connected'
+}
+
+/**
+ * Runs `attempt`, asking for a password while the engine says one is needed
+ * or wrong. Resolves to the result and the password that worked, or null if
+ * the user cancelled. Other errors are thrown.
+ */
+async function withPassword<T>(
+  name: string,
+  attempt: (password?: string) => Promise<T>,
+  initial?: string
+): Promise<{ result: T; password?: string } | null> {
+  let password = initial
+  let asked = false
+  try {
+    for (;;) {
+      try {
+        const result = await attempt(password)
+        return { result, password }
+      } catch (error) {
+        if (!isPasswordError(error)) throw error
+        asked = true
+        const entered = await askPassword(name, error.code === 'password_incorrect')
+        if (entered === null) return null
+        password = entered
+      }
+    }
+  } finally {
+    if (asked) closePasswordPrompt()
+  }
+}
+
+// --- opening ---------------------------------------------------------------
+
+/** Adds a tab for a document the engine has just opened. */
+function showOpened(opened: OpenedDocument, password?: string): string {
+  const id = useTabs.getState().addTab(opened)
+  if (opened.isEncrypted && password !== undefined) passwords.set(id, password)
+  void window.api.files.addRecent(opened.path)
+  void loadOutline(id)
+  return id
+}
 
 /**
  * Opens a file in a new tab, asking for its password if it has one. A file
@@ -66,43 +119,26 @@ export async function openPath(path: string): Promise<boolean> {
   opening.add(key)
 
   const name = fileNameOf(path)
-  let password: string | undefined
-  let asked = false
   try {
-    for (;;) {
-      try {
-        const opened = await engine.openDocument(path, password)
-        if (asked) closePasswordPrompt()
+    const outcome = await withPassword(name, (password) => engine.openDocument(path, password))
+    if (!outcome) return false
+    const opened = outcome.result
 
-        // The engine reports the absolute path, which may be a file we have.
-        const duplicate = findTabByPath(useTabs.getState().tabs, opened.path)
-        if (duplicate) {
-          void engine.closeDocument(opened.docId).catch(() => {})
-          useTabs.getState().activateTab(duplicate.id)
-          return true
-        }
-
-        const id = useTabs.getState().addTab(opened)
-        if (opened.isEncrypted && password !== undefined) passwords.set(id, password)
-        void window.api.files.addRecent(opened.path)
-        void loadOutline(id)
-        return true
-      } catch (error) {
-        if (isPasswordError(error)) {
-          asked = true
-          const entered = await askPassword(name, error.code === 'password_incorrect')
-          if (entered === null) return false
-          password = entered
-          continue
-        }
-        if (asked) closePasswordPrompt()
-        toast.error(`Could not open ${name}`, { description: describe(error) })
-        if (error instanceof EngineApiError && error.code === 'file_not_found') {
-          void window.api.files.removeRecent(path)
-        }
-        return false
-      }
+    // The engine reports the absolute path, which may be a file we have.
+    const duplicate = findTabByPath(useTabs.getState().tabs, opened.path)
+    if (duplicate) {
+      void engine.closeDocument(opened.docId).catch(() => {})
+      useTabs.getState().activateTab(duplicate.id)
+      return true
     }
+    showOpened(opened, outcome.password)
+    return true
+  } catch (error) {
+    toast.error(`Could not open ${name}`, { description: describe(error) })
+    if (error instanceof EngineApiError && error.code === 'file_not_found') {
+      void window.api.files.removeRecent(path)
+    }
+    return false
   } finally {
     opening.delete(key)
   }
@@ -134,6 +170,64 @@ export async function openDroppedFiles(files: Iterable<File>): Promise<void> {
   await openPaths(paths)
 }
 
+export async function loadOutline(tabId: string): Promise<void> {
+  const tab = getTab(tabId)
+  if (!tab) return
+  try {
+    const outline = await engine.outline(tab.docId)
+    if (getTab(tabId)?.docId === tab.docId) useTabs.getState().patchTab(tabId, { outline })
+  } catch {
+    // No outline is not worth a message; the panel simply stays hidden.
+    if (getTab(tabId)?.docId === tab.docId) useTabs.getState().patchTab(tabId, { outline: [] })
+  }
+}
+
+// --- saving ------------------------------------------------------------------
+
+/**
+ * Saves the tab's document to its file, or with `saveAs` to a file the user
+ * picks. Resolves to whether it was saved.
+ */
+export async function saveTab(tabId: string, saveAs = false): Promise<boolean> {
+  const tab = getTab(tabId)
+  if (!tab) return false
+
+  let target: string | undefined
+  if (saveAs) {
+    const chosen = await window.api.files.showSaveDialog(tab.filePath)
+    if (!chosen) return false
+    const other = findTabByPath(useTabs.getState().tabs, chosen)
+    if (other && other.id !== tabId) {
+      toast.error(`Could not save as ${fileNameOf(chosen)}`, {
+        description: 'That file is open in another tab. Close it there first.'
+      })
+      return false
+    }
+    target = chosen
+  }
+
+  try {
+    const saved = await engine.save(tab.docId, target)
+    if (getTab(tabId)?.docId !== tab.docId) return false
+    useTabs.getState().applySaved(tabId, saved)
+    void window.api.files.addRecent(saved.path)
+    toast.success(`Saved ${saved.fileName}`, { duration: 2000 })
+    return true
+  } catch (error) {
+    const name = target ? fileNameOf(target) : tab.fileName
+    const canSaveAs = error instanceof EngineApiError && SAVE_AS_HELPS.has(error.code)
+    toast.error(`Could not save ${name}`, {
+      description: describe(error),
+      action: canSaveAs
+        ? { label: 'Save As…', onClick: () => void saveTab(tabId, true) }
+        : undefined
+    })
+    return false
+  }
+}
+
+// --- closing -------------------------------------------------------------------
+
 function forgetDocument(tabId: string, docId: string): void {
   const search = searches.get(tabId)
   if (search) {
@@ -143,9 +237,13 @@ function forgetDocument(tabId: string, docId: string): void {
   }
   pageImages.dropDocument(docId)
   pageTexts.dropDocument(docId)
+  pageAnnotations.dropDocument(docId)
+  const editing = useTools.getState().editing
+  if (editing?.tabId === tabId) useTools.getState().setEditing(null)
 }
 
-export async function closeTab(tabId: string): Promise<void> {
+/** Closes a tab without asking, dropping any unsaved changes. */
+async function discardTab(tabId: string): Promise<void> {
   const removed = useTabs.getState().removeTab(tabId)
   if (!removed) return
   passwords.delete(tabId)
@@ -161,58 +259,81 @@ export async function closeTab(tabId: string): Promise<void> {
   }
 }
 
-export async function loadOutline(tabId: string): Promise<void> {
+/**
+ * Closes a tab. If it has unsaved changes the user is asked whether to save
+ * them first. Resolves to whether the tab was closed.
+ */
+export async function closeTab(tabId: string): Promise<boolean> {
   const tab = getTab(tabId)
-  if (!tab) return
+  if (!tab) return true
+  if (tab.history.modified && engineConnected()) {
+    useTabs.getState().activateTab(tabId)
+    const choice = await window.api.dialogs.confirmUnsaved(tab.fileName)
+    if (choice === 'cancel') return false
+    if (choice === 'save' && !(await saveTab(tabId))) return false
+  }
+  await discardTab(tabId)
+  return true
+}
+
+let closingApp = false
+
+/**
+ * The window is closing or the app quitting: deal with every tab's unsaved
+ * changes, then let main go ahead. Cancelling any question stops it.
+ */
+export async function requestAppClose(): Promise<void> {
+  if (closingApp) return
+  closingApp = true
   try {
-    const outline = await engine.outline(tab.docId)
-    if (getTab(tabId)?.docId === tab.docId) useTabs.getState().patchTab(tabId, { outline })
-  } catch {
-    // No outline is not worth a message; the panel simply stays hidden.
-    if (getTab(tabId)?.docId === tab.docId) useTabs.getState().patchTab(tabId, { outline: [] })
+    for (const tab of [...useTabs.getState().tabs]) {
+      if (!(await closeTab(tab.id))) return
+    }
+    window.api.app.confirmClose()
+  } finally {
+    closingApp = false
   }
 }
 
-// --- rotation -----------------------------------------------------------------
+// --- recovery copies --------------------------------------------------------------
 
-/**
- * Rotates the current page, or all pages, by a quarter turn (positive is
- * clockwise). The change lives in the engine's working copy; saving it to the
- * file arrives in phase 3.
- */
-export async function rotatePages(
-  tabId: string,
-  degrees: 90 | -90,
-  scope: 'current' | 'all'
-): Promise<void> {
-  const tab = getTab(tabId)
-  if (!tab) return
+/** Opens a recovery copy in a new tab, with its changes unsaved. */
+export async function restoreRecovery(entry: RecoveryEntry): Promise<boolean> {
+  const existing = findTabByPath(useTabs.getState().tabs, entry.originalPath)
+  if (existing) {
+    toast.error(`Could not restore ${entry.fileName}`, {
+      description: 'The file is open. Close it first.'
+    })
+    return false
+  }
   try {
-    const result = await engine.rotatePages(
-      tab.docId,
-      degrees,
-      scope === 'all' ? undefined : [tab.page]
+    const outcome = await withPassword(entry.fileName, (password) =>
+      engine.restoreRecovery(entry.recoveryId, password)
     )
-    const current = getTab(tabId)
-    if (!current || current.docId !== tab.docId) return
-
-    // Search hits on the turned pages turn with them.
-    const turned = new Set(result.dirtyPages)
-    const hits = current.search.hits.map((hit): SearchHit =>
-      turned.has(hit.page)
-        ? {
-            ...hit,
-            quads: hit.quads.map((quad) => rotateQuad(quad, current.pages[hit.page], degrees))
-          }
-        : hit
-    )
-
-    getViewer(tabId)?.holdPage(current.page)
-    const store = useTabs.getState()
-    store.applyMutation(tabId, result, result.pages)
-    if (current.search.hits.length > 0) store.patchSearch(tabId, { hits })
+    if (!outcome) return false
+    showOpened(outcome.result, outcome.password)
+    return true
   } catch (error) {
-    toast.error('Could not rotate', { description: describe(error) })
+    toast.error(`Could not restore ${entry.fileName}`, { description: describe(error) })
+    return false
+  }
+}
+
+export async function discardRecovery(entry: RecoveryEntry): Promise<void> {
+  try {
+    await engine.discardRecovery(entry.recoveryId)
+  } catch {
+    // Already gone.
+  }
+}
+
+/** Offers the recovery copies left by an earlier run, if there are any. */
+async function offerRecovery(): Promise<void> {
+  try {
+    const entries = await engine.recoveryEntries()
+    if (entries.length > 0) useDialogs.setState({ recovery: entries })
+  } catch {
+    // Without the engine there is nothing to restore anyway.
   }
 }
 
@@ -323,22 +444,41 @@ export function stepSearch(tabId: string, direction: 1 | -1): void {
 
 // --- keeping in step with the engine and the main process ---------------------
 
-/** Opens every document again after the engine was replaced by a new process. */
+/**
+ * Opens every document again after the engine was replaced by a new process.
+ * A document with unsaved changes comes back from its recovery copy if one
+ * was written; otherwise from its file.
+ */
 async function reopenAll(): Promise<void> {
   const tabs = useTabs.getState().tabs
   if (tabs.length === 0) return
-  let changesLost = false
+  const recovered: string[] = []
+  const lost: string[] = []
   const failed: string[] = []
+
+  let entries: RecoveryEntry[] = []
+  try {
+    entries = await engine.recoveryEntries()
+  } catch {
+    // Reopen from the files.
+  }
 
   for (const tab of tabs) {
     forgetDocument(tab.id, tab.docId)
+    const copy = tab.history.modified
+      ? entries.find((entry) => findTabByPath([tab], entry.originalPath) !== null)
+      : undefined
     try {
-      const opened = await engine.openDocument(tab.filePath, passwords.get(tab.id))
+      const password = passwords.get(tab.id)
+      const opened = copy
+        ? await engine.restoreRecovery(copy.recoveryId, password)
+        : await engine.openDocument(tab.filePath, password)
       if (!getTab(tab.id)) {
         void engine.closeDocument(opened.docId).catch(() => {})
         continue
       }
-      if (tab.revision > 0) changesLost = true
+      if (copy) recovered.push(tab.fileName)
+      else if (tab.history.modified) lost.push(tab.fileName)
       useTabs.getState().rebindTab(tab.id, opened)
       void loadOutline(tab.id)
       if (tab.search.query.trim() !== '') void runSearch(tab.id)
@@ -353,23 +493,41 @@ async function reopenAll(): Promise<void> {
   if (failed.length > 0) {
     toast.error('Some documents could not be reopened', { description: failed.join(', ') })
   }
-  if (changesLost) {
+  if (recovered.length > 0) {
+    toast.warning('The PDF engine was restarted', {
+      description:
+        `Unsaved changes to ${recovered.join(', ')} were restored from the last recovery copy. ` +
+        'Changes from the last two minutes may be missing.'
+    })
+  }
+  if (lost.length > 0) {
     toast.warning('Unsaved changes were lost', {
-      description: 'The PDF engine was restarted and the documents were opened again from disk.'
+      description: `The PDF engine was restarted and ${lost.join(', ')} was opened again from disk.`
     })
   }
 }
 
 function reportToMain(): void {
   const active = selectActiveTab(useTabs.getState())
-  window.api.menu.setState({ hasDocument: active !== null, layout: active?.layout ?? null })
-  document.title = active ? `${active.fileName} - ${APP_NAME}` : APP_NAME
+  window.api.menu.setState({
+    hasDocument: active !== null,
+    layout: active?.layout ?? null,
+    canUndo: active?.history.canUndo ?? false,
+    canRedo: active?.history.canRedo ?? false,
+    undoName: active?.history.undoName ?? null,
+    redoName: active?.history.redoName ?? null,
+    canDelete: active?.selectedAnnotation != null
+  })
+  document.title = active
+    ? `${active.history.modified ? '*' : ''}${active.fileName} - ${APP_NAME}`
+    : APP_NAME
 }
 
 /**
  * Connects the documents to the outside world: opens the files main asks
- * for, reopens documents after an engine restart, and keeps the menu and the
- * window title in step with the active tab. Returns a function that undoes it.
+ * for, reopens documents after an engine restart, offers recovery copies,
+ * answers main's close requests, and keeps the menu and the window title in
+ * step with the active tab. Returns a function that undoes it.
  */
 export function startDocumentSync(): () => void {
   let stopped = false
@@ -384,12 +542,20 @@ export function startDocumentSync(): () => void {
   reportToMain()
 
   const unsubscribeOpen = window.api.files.onOpenRequest((paths) => void openPaths(paths))
+  const unsubscribeClose = window.api.app.onCloseRequest(() => {
+    // Without the engine nothing can be saved; there is nothing to ask.
+    if (!engineConnected() || useTabs.getState().tabs.length === 0) window.api.app.confirmClose()
+    else void requestAppClose()
+  })
   void (async () => {
     // A page that starts afresh has no tabs, so whatever the engine still has
-    // open belongs to a previous load of the page.
+    // open belongs to a previous load of the page. Its unsaved changes are
+    // kept as recovery copies, which are offered below with any others.
     await engine.closeAllDocuments().catch(() => {})
     if (stopped) return
     await openPaths(await window.api.files.takePending())
+    if (stopped) return
+    await offerRecovery()
   })()
 
   return () => {
@@ -397,5 +563,6 @@ export function startDocumentSync(): () => void {
     unsubscribeEngine()
     unsubscribeTabs()
     unsubscribeOpen()
+    unsubscribeClose()
   }
 }

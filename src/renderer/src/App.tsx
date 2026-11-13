@@ -3,7 +3,10 @@ import { FileDown } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { PasswordDialog } from '@/dialogs/PasswordDialog'
+import { PreferencesDialog } from '@/dialogs/PreferencesDialog'
 import { PropertiesDialog } from '@/dialogs/PropertiesDialog'
+import { RecoveryDialog } from '@/dialogs/RecoveryDialog'
+import { SelectionToolbar } from '@/tools/SelectionToolbar'
 import { runCommand } from '@/shell/commands'
 import { EmptyState } from '@/shell/EmptyState'
 import { installShortcuts } from '@/shell/shortcuts'
@@ -100,6 +103,10 @@ function App(): React.JSX.Element {
           </div>
         </div>
       )}
+      <SelectionToolbar />
+      <RecoveryDialog />
+      <PreferencesDialog />
+      {/* Last, so the password prompt shows above the recovery dialog. */}
       <PasswordDialog />
       <PropertiesDialog />
       <Toaster position="bottom-right" offset={{ bottom: 36, right: 16 }} />

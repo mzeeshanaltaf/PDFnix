@@ -25,7 +25,16 @@ const api: Api = {
     onStatus: (listener) => subscribe<EngineStatus>(IPC.engineStatus, listener)
   },
   app: {
-    getVersion: () => ipcRenderer.invoke(IPC.appGetVersion)
+    getVersion: () => ipcRenderer.invoke(IPC.appGetVersion),
+    onCloseRequest: (listener) => subscribe<void>(IPC.appCloseRequest, () => listener()),
+    confirmClose: () => ipcRenderer.send(IPC.appConfirmClose)
+  },
+  settings: {
+    get: () => ipcRenderer.invoke(IPC.settingsGet),
+    set: (patch) => ipcRenderer.invoke(IPC.settingsSet, patch)
+  },
+  dialogs: {
+    confirmUnsaved: (fileName) => ipcRenderer.invoke(IPC.dialogsConfirmUnsaved, fileName)
   },
   theme: {
     get: () => ipcRenderer.invoke(IPC.themeGet),
@@ -34,6 +43,7 @@ const api: Api = {
   },
   files: {
     showOpenDialog: () => ipcRenderer.invoke(IPC.filesShowOpenDialog),
+    showSaveDialog: (defaultPath) => ipcRenderer.invoke(IPC.filesShowSaveDialog, defaultPath),
     pathForFile: (file) => {
       try {
         return webUtils.getPathForFile(file)

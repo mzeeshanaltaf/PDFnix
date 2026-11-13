@@ -12,6 +12,7 @@ from typing import Any
 import pymupdf
 
 from .sessions import Session
+from .textpages import text_page
 
 # Ligatures are expanded ("ﬁ" becomes "fi") so copied text and search behave
 # as a reader expects. The same flags are used for the text layer and for
@@ -51,7 +52,7 @@ def page_text(session: Session, index: int) -> dict[str, Any]:
     with session.lock:
         page = session.page(index)
         matrix = page.rotation_matrix
-        textpage = page.get_textpage(flags=TEXT_FLAGS)
+        textpage = text_page(page, TEXT_FLAGS)
         words = page.get_text("words", textpage=textpage)
         layout = page.get_text("dict", textpage=textpage)
 
@@ -135,7 +136,7 @@ def search_page(
     page: pymupdf.Page, index: int, needle: str, match_case: bool, whole_word: bool
 ) -> list[dict[str, Any]]:
     """All occurrences of ``needle`` (whitespace already normalised) on a page."""
-    textpage = page.get_textpage(flags=TEXT_FLAGS)
+    textpage = text_page(page, TEXT_FLAGS)
 
     # Cheap test first: most pages of a long document do not contain the query.
     plain = " ".join(page.get_text("text", textpage=textpage).split())

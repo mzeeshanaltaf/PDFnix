@@ -24,7 +24,7 @@ function Tab({ tab, active }: TabProps): React.JSX.Element {
       role="tab"
       aria-selected={active}
       tabIndex={active ? 0 : -1}
-      title={tab.filePath}
+      title={tab.history.modified ? `${tab.filePath} (unsaved changes)` : tab.filePath}
       data-tab-id={tab.id}
       onClick={() => activate(tab.id)}
       onKeyDown={(event) => {
@@ -58,6 +58,14 @@ function Tab({ tab, active }: TabProps): React.JSX.Element {
         <FileText className="size-3.5 shrink-0 opacity-70" aria-hidden />
       )}
       <span className="min-w-0 flex-1 truncate">{tab.fileName}</span>
+      {tab.history.modified && (
+        <span
+          className="size-2 shrink-0 rounded-full bg-foreground/60"
+          role="img"
+          aria-label="Unsaved changes"
+          data-modified
+        />
+      )}
       <button
         type="button"
         aria-label={`Close ${tab.fileName}`}

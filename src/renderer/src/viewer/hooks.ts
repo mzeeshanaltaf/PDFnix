@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import type { PageText } from '@/api/engine'
+import type { Annotation, PageText } from '@/api/engine'
 import { pageImages, type PageImage } from './pageImages'
-import { pageTexts } from './pageText'
+import { pageAnnotations, pageTexts, type PageDataStore } from './pageText'
 
 /** `value`, but only once it has stopped changing for `delay` milliseconds. */
 export function useSettled<T>(value: T, delay: number): T {
@@ -63,6 +63,31 @@ export function usePageImage(
 /** How long a page must stay mounted before its text is fetched. */
 const TEXT_DELAY_MS = 120
 
+function usePageData<T>(
+  store: PageDataStore<T>,
+  docId: string,
+  page: number,
+  revision: number,
+  enabled: boolean
+): T | null {
+  const value = useSyncExternalStore(store.subscribe, () => store.peek(docId, page, revision))
+
+  useEffect(() => {
+    if (!enabled) return
+    // Pages that only fly past while scrolling never ask.
+    let release = (): void => {}
+    const timer = setTimeout(() => {
+      release = store.request(docId, page, revision)
+    }, TEXT_DELAY_MS)
+    return () => {
+      clearTimeout(timer)
+      release()
+    }
+  }, [store, docId, page, revision, enabled])
+
+  return value
+}
+
 /** The words of a page, or `null` while they are not loaded. */
 export function usePageText(
   docId: string,
@@ -70,22 +95,15 @@ export function usePageText(
   revision: number,
   enabled: boolean
 ): PageText | null {
-  const text = useSyncExternalStore(pageTexts.subscribe, () =>
-    pageTexts.peek(docId, page, revision)
-  )
+  return usePageData(pageTexts, docId, page, revision, enabled)
+}
 
-  useEffect(() => {
-    if (!enabled) return
-    // Pages that only fly past while scrolling never ask.
-    let release = (): void => {}
-    const timer = setTimeout(() => {
-      release = pageTexts.request(docId, page, revision)
-    }, TEXT_DELAY_MS)
-    return () => {
-      clearTimeout(timer)
-      release()
-    }
-  }, [docId, page, revision, enabled])
-
-  return text
+/** The annotations of a page, or `null` while they are not loaded. */
+export function usePageAnnotations(
+  docId: string,
+  page: number,
+  revision: number,
+  enabled: boolean
+): Annotation[] | null {
+  return usePageData(pageAnnotations, docId, page, revision, enabled)
 }

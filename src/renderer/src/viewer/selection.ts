@@ -16,6 +16,9 @@
  *    regardless of how the spans happen to be laid out.
  */
 
+import type { Rect } from '@/api/engine'
+import type { WordPiece } from '@/tools/quads'
+
 export const TEXT_LAYER_CLASS = 'pdf-text-layer'
 export const END_OF_CONTENT_CLASS = 'end-of-content'
 const SELECTING_CLASS = 'selecting'
@@ -24,6 +27,77 @@ export const END_OF_LINE_ATTRIBUTE = 'data-eol'
 
 /** Every mounted text layer and its end-of-content element. */
 const layers = new Map<HTMLElement, HTMLElement>()
+
+/** Which word each span of a text layer shows. */
+export interface SpanWord {
+  page: number
+  line: number
+  angle: number
+  bbox: Rect
+  /** Characters of the span's text that belong to the word. */
+  length: number
+}
+
+const spanWords = new WeakMap<Element, SpanWord>()
+
+/** Records which word a text layer span shows, for turning selections into markup. */
+export function describeSpan(span: Element, word: SpanWord): void {
+  spanWords.set(span, word)
+}
+
+/** Text layers that take part in `range`, in document (page) order. */
+function layersIn(range: Range): HTMLElement[] {
+  return [...layers.keys()]
+    .filter((layer) => range.intersectsNode(layer))
+    .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
+}
+
+/** The selected part (character offsets) of a span's text. */
+function selectedPart(range: Range, span: Element, node: Node): [number, number] {
+  const content = node.textContent ?? ''
+  // A boundary is normally inside the span's text. It can also sit on the
+  // span itself, before (offset 0) or after its text.
+  let from = 0
+  if (range.startContainer === node) from = range.startOffset
+  else if (range.startContainer === span && range.startOffset > 0) from = content.length
+  let to = content.length
+  if (range.endContainer === node) to = range.endOffset
+  else if (range.endContainer === span && range.endOffset === 0) to = 0
+  return [from, to]
+}
+
+/**
+ * The words the selection covers, with the selected part of each, for
+ * creating text markup. Empty if nothing on a page is selected.
+ */
+export function selectedWordPieces(selection: Selection | null): WordPiece[] {
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return []
+  const range = selection.getRangeAt(0)
+  const pieces: WordPiece[] = []
+  for (const layer of layersIn(range)) {
+    for (const child of layer.children) {
+      const word = spanWords.get(child)
+      const node = child.firstChild
+      if (!word || !node || !range.intersectsNode(child) || word.length <= 0) continue
+      const [from, to] = selectedPart(range, child, node)
+      if (to <= from || from >= word.length) continue
+      pieces.push({
+        page: word.page,
+        line: word.line,
+        angle: word.angle,
+        bbox: word.bbox,
+        from: from / word.length,
+        to: Math.min(to, word.length) / word.length
+      })
+    }
+  }
+  return pieces
+}
+
+/** Ends any text selection. */
+export function clearTextSelection(): void {
+  document.getSelection()?.removeAllRanges()
+}
 let installed = 0
 let previousRange: Range | null = null
 
@@ -89,11 +163,7 @@ export function selectedLayerText(selection: Selection | null): string | null {
   let lineBreakDue = false
   let found = false
   // Layers are visited in document order, which is page order.
-  const ordered = [...layers.keys()].sort((a, b) =>
-    a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
-  )
-  for (const layer of ordered) {
-    if (!range.intersectsNode(layer)) continue
+  for (const layer of layersIn(range)) {
     for (const child of layer.children) {
       if (child.classList.contains(END_OF_CONTENT_CLASS)) continue
       const node = child.firstChild
@@ -101,14 +171,7 @@ export function selectedLayerText(selection: Selection | null): string | null {
       found = true
 
       const content = node.textContent ?? ''
-      // A boundary is normally inside the span's text. It can also sit on the
-      // span itself, before (offset 0) or after its text.
-      let from = 0
-      if (range.startContainer === node) from = range.startOffset
-      else if (range.startContainer === child && range.startOffset > 0) from = content.length
-      let to = content.length
-      if (range.endContainer === node) to = range.endOffset
-      else if (range.endContainer === child && range.endOffset === 0) to = 0
+      const [from, to] = selectedPart(range, child, node)
       const part = content.slice(from, to)
       if (part.length > 0) {
         if (lineBreakDue) text = `${text.trimEnd()}\n`

@@ -12,8 +12,21 @@ function opened(name: string, pageCount = 3, docId = `doc-${name}`): OpenedDocum
     title: '',
     isEncrypted: false,
     hasTextLayer: true,
-    revision: 0
+    revision: 0,
+    canUndo: false,
+    canRedo: false,
+    undoName: null,
+    redoName: null,
+    modified: false
   }
+}
+
+const CHANGED = {
+  canUndo: true,
+  canRedo: false,
+  undoName: 'Rotate',
+  redoName: null,
+  modified: true
 }
 
 const store = (): ReturnType<typeof useTabs.getState> => useTabs.getState()
@@ -126,14 +139,68 @@ describe('tab store', () => {
 
   it('records a change: new revision, new page sizes, dirty pages re-render', () => {
     const id = store().addTab(opened('a.pdf', 3))
-    store().applyMutation(id, { revision: 1, dirtyPages: [1], pageCount: 3 }, [
-      { index: 1, width: 792, height: 612, rotation: 90 }
-    ])
+    store().applyMutation(id, {
+      revision: 1,
+      dirtyPages: [1],
+      pageCount: 3,
+      pages: [{ index: 1, width: 792, height: 612, rotation: 90 }],
+      ...CHANGED
+    })
     const tab = getActiveTab()!
     expect(tab.revision).toBe(1)
     expect(tab.pages[1]).toEqual({ width: 792, height: 612, rotation: 90 })
     expect(tab.pages[0]).toEqual({ width: 612, height: 792, rotation: 0 })
     expect(tab.pageRevisions).toEqual([0, 1, 0])
+    expect(tab.history).toEqual(CHANGED)
+  })
+
+  it('tracks unsaved changes from the engine, not from the revision', () => {
+    const id = store().addTab(opened('a.pdf', 3))
+    expect(getActiveTab()!.history.modified).toBe(false)
+    store().applyMutation(id, { revision: 1, dirtyPages: [0], pageCount: 3, pages: [], ...CHANGED })
+    expect(getActiveTab()!.history.modified).toBe(true)
+    // Undoing back to the saved state: the revision goes up, the document is clean.
+    store().applyMutation(id, {
+      revision: 2,
+      dirtyPages: [0],
+      pageCount: 3,
+      pages: [],
+      canUndo: false,
+      canRedo: true,
+      undoName: null,
+      redoName: 'Rotate',
+      modified: false
+    })
+    expect(getActiveTab()).toMatchObject({ revision: 2, history: { modified: false } })
+  })
+
+  it('moves a tab to its new file after Save As', () => {
+    const id = store().addTab(opened('a.pdf'))
+    store().applyMutation(id, { revision: 1, dirtyPages: [0], pageCount: 3, pages: [], ...CHANGED })
+    store().applySaved(id, {
+      path: 'D:\\Out\\b.pdf',
+      fileName: 'b.pdf',
+      revision: 1,
+      ...CHANGED,
+      modified: false
+    })
+    expect(getActiveTab()).toMatchObject({
+      filePath: 'D:\\Out\\b.pdf',
+      fileName: 'b.pdf',
+      history: { modified: false, canUndo: true }
+    })
+    expect(findTabByPath(store().tabs, 'd:/out/B.pdf')?.id).toBe(id)
+    expect(findTabByPath(store().tabs, 'C:\\Docs\\a.pdf')).toBeNull()
+  })
+
+  it('selects and deselects an annotation without needless updates', () => {
+    const id = store().addTab(opened('a.pdf'))
+    store().selectAnnotation(id, { annotId: 12, page: 1 })
+    const before = store().tabs
+    store().selectAnnotation(id, { annotId: 12, page: 1 })
+    expect(store().tabs).toBe(before)
+    store().selectAnnotation(id, null)
+    expect(getActiveTab()!.selectedAnnotation).toBeNull()
   })
 
   it('moves a tab to a new engine session, keeping where the reader was', () => {

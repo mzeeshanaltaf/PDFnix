@@ -58,14 +58,14 @@ def wait_for_exit(pid: int) -> None:
         _wait_posix(pid)
 
 
-def _exit_now() -> None:
+def exit_now() -> None:
     with contextlib.suppress(Exception):
         sys.stderr.write("pdfengine: owner process exited, shutting down\n")
         sys.stderr.flush()
     os._exit(0)
 
 
-def start_parent_watchdog(pid: int, on_exit: Callable[[], None] = _exit_now) -> threading.Thread:
+def start_parent_watchdog(pid: int, on_exit: Callable[[], None] = exit_now) -> threading.Thread:
     """Start a daemon thread that calls ``on_exit`` once ``pid`` is gone."""
 
     def run() -> None:

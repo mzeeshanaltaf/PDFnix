@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { RecoveryEntry } from '../api/engine'
 
 export interface PasswordPrompt {
   fileName: string
@@ -14,12 +15,21 @@ interface DialogsState {
   password: PasswordPrompt | null
   /** The tab whose properties are shown, or `null`. */
   propertiesTabId: string | null
+  preferencesOpen: boolean
+  /** Recovery copies on offer; the dialog shows while this is not empty. */
+  recovery: RecoveryEntry[]
 }
 
 export const useDialogs = create<DialogsState>(() => ({
   password: null,
-  propertiesTabId: null
+  propertiesTabId: null,
+  preferencesOpen: false,
+  recovery: []
 }))
+
+export function showPreferences(open: boolean): void {
+  useDialogs.setState({ preferencesOpen: open })
+}
 
 let answer: ((password: string | null) => void) | null = null
 

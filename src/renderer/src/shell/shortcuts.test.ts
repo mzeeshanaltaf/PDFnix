@@ -77,6 +77,35 @@ describe('shortcutFor', () => {
     expect(shortcutFor(key('F3'), typing)).toEqual(command('edit.findNext'))
   })
 
+  it('maps save, undo and redo', () => {
+    expect(shortcutFor(key('s', { ctrl: true }), viewing)).toEqual(command('file.save'))
+    expect(shortcutFor(key('S', { ctrl: true, shift: true }), viewing)).toEqual(
+      command('file.saveAs')
+    )
+    expect(shortcutFor(key('z', { ctrl: true }), viewing)).toEqual(command('edit.undo'))
+    expect(shortcutFor(key('y', { ctrl: true }), viewing)).toEqual(command('edit.redo'))
+    expect(shortcutFor(key('Z', { ctrl: true, shift: true }), viewing)).toEqual(
+      command('edit.redo')
+    )
+    // Saving works from a text box; undo there is the text box's own.
+    expect(shortcutFor(key('s', { ctrl: true }), typing)).toEqual(command('file.save'))
+    expect(shortcutFor(key('z', { ctrl: true }), typing)).toBeNull()
+    expect(shortcutFor(key('y', { ctrl: true }), typing)).toBeNull()
+  })
+
+  it('picks tools and deletes with single keys, but not while typing', () => {
+    expect(shortcutFor(key('h'), viewing)).toEqual(command('tools.highlight'))
+    expect(shortcutFor(key('U'), viewing)).toEqual(command('tools.underline'))
+    expect(shortcutFor(key('k'), viewing)).toEqual(command('tools.strikeout'))
+    expect(shortcutFor(key('n'), viewing)).toEqual(command('tools.note'))
+    expect(shortcutFor(key('v'), viewing)).toEqual(command('tools.select'))
+    expect(shortcutFor(key('Delete'), viewing)).toEqual(command('edit.delete'))
+    expect(shortcutFor(key('Escape'), viewing)).toEqual(command('edit.escape'))
+    for (const name of ['h', 'n', 'Delete', 'Backspace', 'Escape']) {
+      expect(shortcutFor(key(name), typing)).toBeNull()
+    }
+  })
+
   it('leaves Space to a focused button', () => {
     expect(shortcutFor(key(' '), { typing: false, onControl: true })).toBeNull()
   })

@@ -1,5 +1,6 @@
 import { LayoutGrid, ListTree, MessageSquareText, Search as SearchIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { Comments } from '@/panels/Comments'
 import { Outline } from '@/panels/Outline'
 import { Search } from '@/panels/Search'
 import { Thumbnails } from '@/panels/Thumbnails'
@@ -22,12 +23,8 @@ function PanelBody({ tab, panel }: { tab: DocumentTab; panel: SidePanelId }): Re
       return <Outline tab={tab} />
     case 'search':
       return <Search tab={tab} />
-    default:
-      return (
-        <p className="px-3 py-4 text-[13px] leading-relaxed text-muted-foreground">
-          Highlights and comments appear here once you add them.
-        </p>
-      )
+    case 'annotations':
+      return <Comments tab={tab} />
   }
 }
 
