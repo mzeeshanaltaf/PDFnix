@@ -2,7 +2,7 @@
 
 Single source of truth for where the project stands. Read fully at the start of every session; update during and at the end of every session. The protocol is in `CLAUDE.md` at the project root.
 
-**Last updated:** 2026-11-13 — phase 5 session (phase 5 complete; commit pending the user's go-ahead)
+**Last updated:** 2026-11-13 — phase 5 session (phase 5 complete, committed and pushed)
 
 ## Phases
 
@@ -22,7 +22,7 @@ Status values: Not started · In progress · Complete · Complete with accepted 
 
 - **Current phase:** 6 — Processing jobs (not started)
 - **Next action:** in a new session, follow the start-of-session steps in `CLAUDE.md`, then begin phase 6 from [phase-6-processing-jobs.md](phase-6-processing-jobs.md). Read the phase 5 handoff note first (page operations are `structure` steps; graft maps must not outlive an undo; MuPDF's text-removal shift).
-- **Uncommitted work:** all of phase 5 (engine, renderer, main, STATUS) is in the working tree, not yet committed; the session proposed a commit message to the user. Phases 1–4 are on `origin/main`. Ask before pushing.
+- **Uncommitted work:** none. Phases 1–5 are committed on `main` and pushed to `origin` (phase 5: `b9f828b`; the user asked for the push). Ask before pushing later phases unless told otherwise.
 
 ## Current phase progress
 
