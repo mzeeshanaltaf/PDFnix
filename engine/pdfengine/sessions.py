@@ -14,7 +14,7 @@ import os
 import threading
 import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
@@ -58,6 +58,7 @@ class Session:
         file_size: int,
         encrypted: bool,
         password: str | None,
+        owner_access: bool = True,
     ) -> None:
         self.id = uuid.uuid4().hex
         self.path = path
@@ -66,6 +67,18 @@ class Session:
         self.encrypted = encrypted
         #: Kept so a compacted copy can be opened when saving.
         self.password = password
+        #: True if the document may have its protection changed or removed:
+        #: it is not encrypted, or was opened (or since unlocked) with its
+        #: owner password.
+        self.owner_access = owner_access
+        #: Protection to write on every save from now on (``security.py``):
+        #: None keeps the document's own encryption.
+        self.protection: Any = None
+        #: True while a protection change has not been saved yet.
+        self.protection_pending = False
+        #: The protection the last save in this session wrote; None while the
+        #: file still has the encryption it was opened with.
+        self.saved_protection: Any = None
         #: Increases with every change to the document, including undo and redo.
         self.revision = 0
         self._doc: pymupdf.Document | None = doc
@@ -129,10 +142,21 @@ class Session:
         with self.lock, self.history.operation(name) as step:
             yield step
 
+    @property
+    def modified(self) -> bool:
+        """The document differs from its file (edits or a protection change)."""
+        return self.history.modified or self.protection_pending
+
+    def undo_state(self) -> dict[str, Any]:
+        """Undo/redo state, with ``modified`` covering protection changes."""
+        state = self.history.state()
+        state["modified"] = state["modified"] or self.protection_pending
+        return state
+
     def state(self) -> dict[str, Any]:
         """Revision and undo/redo state."""
         with self.lock:
-            return {"revision": self.revision, **self.history.state()}
+            return {"revision": self.revision, **self.undo_state()}
 
     def mutated(
         self, dirty_pages: set[int] | list[int], *, structure: bool = False
@@ -158,7 +182,7 @@ class Session:
                 "pageCount": doc.page_count,
                 "pages": [{"index": index, **page_info(doc[index])} for index in dirty],
                 "structure": structure,
-                **self.history.state(),
+                **self.undo_state(),
             }
 
     def unchanged(self) -> dict[str, Any]:
@@ -170,7 +194,7 @@ class Session:
                 "pageCount": self.page_count,
                 "pages": [],
                 "structure": False,
-                **self.history.state(),
+                **self.undo_state(),
             }
 
     def describe(self) -> dict[str, Any]:
@@ -227,11 +251,15 @@ def open_bytes(data: bytes, path: str, password: str | None = None) -> Session:
             if not doc.is_pdf:
                 raise InvalidPdfError()
             encrypted = bool(doc.needs_pass)
+            # Owner rights: unencrypted, or the password given is the owner's.
+            owner_access = not (doc.metadata or {}).get("encryption")
             if encrypted:
                 if not password:
                     raise PasswordRequiredError()
-                if not doc.authenticate(password):
+                level = doc.authenticate(password)
+                if not level:
                     raise PasswordIncorrectError()
+                owner_access = bool(level & 4)
             if doc.page_count < 1:
                 raise InvalidPdfError("The document has no pages.")
         except Exception:
@@ -244,6 +272,7 @@ def open_bytes(data: bytes, path: str, password: str | None = None) -> Session:
             file_size=len(data),
             encrypted=encrypted,
             password=password if encrypted else None,
+            owner_access=owner_access,
         )
 
 
@@ -253,6 +282,8 @@ class SessionRegistry:
     def __init__(self) -> None:
         self._sessions: dict[str, Session] = {}
         self._lock = threading.RLock()
+        #: Called with each session removed (closed), before it is closed.
+        self.on_remove: list[Callable[[Session], None]] = []
 
     def __len__(self) -> int:
         with self._lock:
@@ -276,9 +307,12 @@ class SessionRegistry:
     def remove(self, session_id: str) -> Session:
         with self._lock:
             try:
-                return self._sessions.pop(session_id)
+                session = self._sessions.pop(session_id)
             except KeyError:
                 raise NotFoundError(f"No open document with id '{session_id}'.") from None
+        for listener in self.on_remove:
+            listener(session)
+        return session
 
     def ids(self) -> list[str]:
         with self._lock:
@@ -293,4 +327,6 @@ class SessionRegistry:
             sessions = list(self._sessions.values())
             self._sessions.clear()
         for session in sessions:
+            for listener in self.on_remove:
+                listener(session)
             session.close()

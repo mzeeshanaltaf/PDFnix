@@ -34,6 +34,17 @@ const SAVE_AS_HELPS = new Set(['file_locked', 'file_read_only', 'folder_not_writ
  * to open the file again if the engine is restarted, and are never stored.
  */
 const passwords = new Map<string, string>()
+/**
+ * Protection set for a tab and not yet saved: the password needed to open the
+ * file once it is (null: none). Becomes the remembered password on save.
+ */
+const pendingOpenPasswords = new Map<string, string | null>()
+
+/** Records a protection change made for a tab (`undefined`: none pending any more). */
+export function noteProtectionChange(tabId: string, openPassword: string | null | undefined): void {
+  if (openPassword === undefined) pendingOpenPasswords.delete(tabId)
+  else pendingOpenPasswords.set(tabId, openPassword)
+}
 /** Files being opened right now, so a double request opens them once. */
 const opening = new Set<string>()
 const searches = new Map<
@@ -236,6 +247,14 @@ export async function saveTab(tabId: string, saveAs = false): Promise<boolean> {
     const saved = await engine.save(tab.docId, target)
     if (getTab(tabId)?.docId !== tab.docId) return false
     useTabs.getState().applySaved(tabId, saved)
+    if (pendingOpenPasswords.has(tabId)) {
+      // The file now has the protection set in the Protect dialog.
+      const openPassword = pendingOpenPasswords.get(tabId) ?? null
+      pendingOpenPasswords.delete(tabId)
+      if (openPassword) passwords.set(tabId, openPassword)
+      else passwords.delete(tabId)
+      useTabs.getState().patchTab(tabId, { isEncrypted: openPassword !== null })
+    }
     void window.api.files.addRecent(saved.path)
     toast.success(`Saved ${saved.fileName}`, { duration: 2000 })
     return true
@@ -274,6 +293,7 @@ async function discardTab(tabId: string): Promise<void> {
   const removed = useTabs.getState().removeTab(tabId)
   if (!removed) return
   passwords.delete(tabId)
+  pendingOpenPasswords.delete(tabId)
   forgetViewPosition(tabId)
   forgetDocument(tabId, removed.docId)
   if (useDialogs.getState().propertiesTabId === tabId) {
@@ -534,9 +554,13 @@ async function reopenAll(): Promise<void> {
   }
 }
 
+/** Whether a Word-to-PDF converter exists, as the engine last said. */
+let canConvertWord = false
+
 function reportToMain(): void {
   const active = selectActiveTab(useTabs.getState())
   window.api.menu.setState({
+    canConvertWord,
     hasDocument: active !== null,
     layout: active?.layout ?? null,
     canUndo: active?.history.canUndo ?? false,
@@ -556,6 +580,16 @@ function reportToMain(): void {
  * answers main's close requests, and keeps the menu and the window title in
  * step with the active tab. Returns a function that undoes it.
  */
+/** Asks the engine whether Word documents can be converted (Word or LibreOffice). */
+async function checkConverters(): Promise<void> {
+  try {
+    canConvertWord = (await engine.converters()).using !== null
+  } catch {
+    canConvertWord = false
+  }
+  reportToMain()
+}
+
 export function startDocumentSync(): () => void {
   let stopped = false
   let generation: number | null = null
@@ -563,8 +597,10 @@ export function startDocumentSync(): () => void {
   const unsubscribeEngine = useEngine.subscribe((state) => {
     if (state.link !== 'connected') return
     if (generation !== null && generation !== state.generation) void reopenAll()
+    if (generation !== state.generation) void checkConverters()
     generation = state.generation
   })
+  if (engineConnected()) void checkConverters()
   const unsubscribeTabs = useTabs.subscribe(reportToMain)
   reportToMain()
 

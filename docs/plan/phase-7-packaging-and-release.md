@@ -19,13 +19,15 @@ Not included: auto-update, code signing with a purchased certificate, Microsoft 
 - Run without a console window; log to a rotating file in the app-data folder.
 - Note from phase 1: PyMuPDF 2.1 declares hard dependencies on `pymupdf-layout`, `pymupdf4llm`, `onnxruntime`, `numpy`, `networkx`, `psutil`, `pyyaml` and `tabulate`. The engine does not use them, but they are installed with it. Exclude what the engine never imports from the frozen build (PyInstaller `excludes`) and measure the result; the size estimate below assumed PyMuPDF alone.
 - Note from phase 1: the engine watches the PID in `PDFENGINE_PARENT_PID` (set by main), which keeps working when the engine is a frozen executable. A page loaded from `file://` sends the origin `null`, and main already passes that as the allowed CORS origin when no dev server is in use.
+- Note from phase 6: OCR, Compress and PDF → Word run in **child processes** (`multiprocessing`, `spawn`; `pdfengine/worker.py`). A frozen engine must call `multiprocessing.freeze_support()` first thing in `__main__.main()`, or each child starts a second engine. The children import their target by module name (`pdfengine.ocr`, `pdfengine.compress`, `pdfengine.convert`): list these as hidden imports. `pdf2docx` 0.5.13 brings `opencv-python-headless` 5.0 (large), `fonttools`, `lxml`, `python-docx`, `fire`, `termcolor`; measure the frozen size with them. Word → PDF starts `powershell.exe` (COM automation of Word); nothing to bundle.
 - Script: `pnpm build:engine`.
-- Smoke-test the frozen engine on its own: start it, call health, open a PDF, render a page, run OCR, convert to Word.
+- Smoke-test the frozen engine on its own: start it, call health, open a PDF, render a page, run OCR (this exercises the child process), compress, convert to Word.
 
 ### 2. Package the app
 
 - `electron-builder.yml`:
-  - `extraResources`: the frozen engine folder → `resources/engine`; `resources/tessdata` → `resources/…`. (Phase 4 bundles no engine fonts: text uses MuPDF's built-in fonts. The four handwriting fonts for typed signatures are renderer assets in `src/renderer/src/assets/fonts/`, bundled by Vite, with their `OFL-*.txt` licences beside them; include those licences in the About dialog's notices.)
+  - `extraResources`: the frozen engine folder → `resources/engine`; `resources/tessdata` → `resources/tessdata` (phase 6: `eng.traineddata` from `tessdata_fast` and its Apache-2.0 `LICENSE`; main passes `process.resourcesPath/tessdata` as `PDFENGINE_TESSDATA_BUNDLED` when packaged, and downloads go to `<userData>/tessdata`).
+  - `asarUnpack` for `node_modules/pdf-to-printer/dist/*.exe` (phase 6): printing runs the SumatraPDF 3.4.6 that `pdf-to-printer` bundles, which cannot run from inside the asar archive; `pdf-to-printer` itself rewrites the path to `app.asar.unpacked`. SumatraPDF is GPLv3; add its notice to the About dialog. (Phase 4 bundles no engine fonts: text uses MuPDF's built-in fonts. The four handwriting fonts for typed signatures are renderer assets in `src/renderer/src/assets/fonts/`, bundled by Vite, with their `OFL-*.txt` licences beside them; include those licences in the About dialog's notices.)
   - Target: NSIS installer, x64; per-user install by default with the option to install for all users; Start-menu and optional desktop shortcut; uninstaller that leaves user data unless asked.
   - `fileAssociations` for `.pdf` so the app appears under "Open with" and can be chosen as the default.
 - `src/main/engine.ts` uses the packaged path when `app.isPackaged`.

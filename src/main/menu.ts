@@ -13,11 +13,6 @@ import { changeTheme, currentTheme } from './theme'
 let getWindow: () => BrowserWindow | null = () => null
 let state: MenuState = EMPTY_MENU_STATE
 
-/** A menu entry that exists but is not implemented yet. */
-function placeholder(label: string, accelerator?: string): MenuItemConstructorOptions {
-  return { label, accelerator, enabled: false, registerAccelerator: false }
-}
-
 /**
  * An entry that runs a command in the renderer.
  *
@@ -162,7 +157,7 @@ export function buildMenu(): void {
         command('Save', 'file.save', 'CmdOrCtrl+S'),
         command('Save As…', 'file.saveAs', 'CmdOrCtrl+Shift+S'),
         { type: 'separator' },
-        placeholder('Print…', 'CmdOrCtrl+P'),
+        command('Print…', 'file.print', 'CmdOrCtrl+P'),
         { type: 'separator' },
         command('Properties…', 'file.properties', 'CmdOrCtrl+D'),
         command('Preferences…', 'file.preferences', 'CmdOrCtrl+,', { needsDocument: false }),
@@ -241,10 +236,28 @@ export function buildMenu(): void {
         { type: 'separator' },
         command('Mark for Redaction', 'tools.redact', 'R'),
         { type: 'separator' },
-        placeholder('Compress…'),
-        placeholder('Protect with Password…'),
-        placeholder('Recognise Text (OCR)…'),
-        placeholder('Convert…')
+        command('Compress…', 'tools.compress'),
+        command('Protect with Password…', 'tools.protect'),
+        command('Recognise Text (OCR)…', 'tools.ocr'),
+        command('OCR Languages…', 'tools.ocrLanguages', undefined, { needsDocument: false }),
+        {
+          label: 'Convert',
+          submenu: [
+            command('PDF to Word…', 'convert.toWord'),
+            command('PDF to Images…', 'convert.toImages'),
+            command('PDF to Text…', 'convert.toText'),
+            { type: 'separator' },
+            command('Images to PDF…', 'convert.imagesToPdf', undefined, { needsDocument: false }),
+            command(
+              state.canConvertWord
+                ? 'Word to PDF…'
+                : 'Word to PDF… (needs Microsoft Word or LibreOffice)',
+              'convert.wordToPdf',
+              undefined,
+              { needsDocument: false, enabled: state.canConvertWord }
+            )
+          ]
+        }
       ]
     },
     {

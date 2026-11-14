@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react'
 import { FileDown } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { CompressDialog } from '@/dialogs/CompressDialog'
 import { ConfirmDialog } from '@/dialogs/ConfirmDialog'
+import { ConvertDialog } from '@/dialogs/ConvertDialog'
+import { ImagesToPdfDialog } from '@/dialogs/ImagesToPdfDialog'
+import { JobProgressDialog } from '@/dialogs/JobProgress'
+import { OcrDialog } from '@/dialogs/OcrDialog'
+import { OcrLanguagesDialog } from '@/dialogs/OcrLanguagesDialog'
+import { PrintDialog } from '@/dialogs/PrintDialog'
+import { ProtectDialog } from '@/dialogs/ProtectDialog'
 import { HeaderFooterDialog } from '@/dialogs/HeaderFooterDialog'
 import { MergeDialog } from '@/dialogs/MergeDialog'
 import { OrganiseDialog } from '@/dialogs/OrganiseDialog'
@@ -135,6 +143,14 @@ function App(): React.JSX.Element {
       <RedactDialog />
       <WatermarkDialog />
       <HeaderFooterDialog />
+      <CompressDialog />
+      <ProtectDialog />
+      <OcrDialog />
+      <OcrLanguagesDialog />
+      <ConvertDialog />
+      <ImagesToPdfDialog />
+      <PrintDialog />
+      <JobProgressDialog />
       <PageRangeDialog />
       <ConfirmDialog />
       {/* Last, so the password prompt shows above the other dialogs. */}

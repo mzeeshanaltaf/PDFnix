@@ -43,12 +43,13 @@ const api: Api = {
   },
   files: {
     showOpenDialog: () => ipcRenderer.invoke(IPC.filesShowOpenDialog),
-    showSaveDialog: (defaultPath, title) =>
-      ipcRenderer.invoke(IPC.filesShowSaveDialog, defaultPath, title),
+    showSaveDialog: (defaultPath, title, kind) =>
+      ipcRenderer.invoke(IPC.filesShowSaveDialog, defaultPath, title, kind),
     choose: (kind, title) => ipcRenderer.invoke(IPC.filesChoose, kind, title),
     chooseFolder: (defaultPath, title) =>
       ipcRenderer.invoke(IPC.filesChooseFolder, defaultPath, title),
     showInFolder: (path) => ipcRenderer.send(IPC.filesShowInFolder, path),
+    openExternally: (path) => ipcRenderer.invoke(IPC.filesOpenExternally, path),
     pathForFile: (file) => {
       try {
         return webUtils.getPathForFile(file)
@@ -67,6 +68,10 @@ const api: Api = {
   menu: {
     onCommand: (listener) => subscribe<MenuCommand>(IPC.menuCommand, listener),
     setState: (state) => ipcRenderer.send(IPC.menuSetState, state)
+  },
+  print: {
+    printers: () => ipcRenderer.invoke(IPC.printPrinters),
+    print: (request) => ipcRenderer.invoke(IPC.printPrint, request)
   },
   signatures: {
     list: () => ipcRenderer.invoke(IPC.signaturesList),

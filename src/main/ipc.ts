@@ -3,6 +3,7 @@ import {
   IPC,
   isFileChoice,
   isLayoutMode,
+  isSaveKind,
   isThemeSource,
   type MenuState,
   type UnsavedChoice
@@ -14,6 +15,7 @@ import {
   chooseFolder,
   clearRecent,
   listRecent,
+  openExternally,
   removeRecent,
   showInFolder,
   showOpenDialog,
@@ -21,6 +23,7 @@ import {
   takePending
 } from './files'
 import { setMenuState } from './menu'
+import { listPrinters, printFile } from './print'
 import { getUserSettings, setUserSettings } from './settings'
 import {
   addSignature,
@@ -44,7 +47,8 @@ function toMenuState(value: unknown): MenuState {
     canRedo: candidate.canRedo === true,
     undoName: text(candidate.undoName),
     redoName: text(candidate.redoName),
-    canDelete: candidate.canDelete === true
+    canDelete: candidate.canDelete === true,
+    canConvertWord: candidate.canConvertWord === true
   }
 }
 
@@ -87,9 +91,12 @@ export function registerIpc(engine: EngineManager, onConfirmClose: () => void): 
   )
 
   ipcMain.handle(IPC.filesShowOpenDialog, () => showOpenDialog())
-  ipcMain.handle(IPC.filesShowSaveDialog, (_event, defaultPath: unknown, title: unknown) =>
-    showSaveDialog(defaultPath, title)
+  ipcMain.handle(
+    IPC.filesShowSaveDialog,
+    (_event, defaultPath: unknown, title: unknown, kind: unknown) =>
+      showSaveDialog(defaultPath, title, isSaveKind(kind) ? kind : 'pdf')
   )
+  ipcMain.handle(IPC.filesOpenExternally, (_event, path: unknown) => openExternally(path))
   ipcMain.handle(IPC.filesChoose, (_event, kind: unknown, title: unknown) =>
     isFileChoice(kind) ? chooseFiles(kind, title) : []
   )
@@ -108,6 +115,9 @@ export function registerIpc(engine: EngineManager, onConfirmClose: () => void): 
   ipcMain.handle(IPC.filesClearRecent, () => clearRecent())
 
   ipcMain.on(IPC.menuSetState, (_event, state: unknown) => setMenuState(toMenuState(state)))
+
+  ipcMain.handle(IPC.printPrinters, () => listPrinters())
+  ipcMain.handle(IPC.printPrint, (_event, request: unknown) => printFile(request))
 
   ipcMain.handle(IPC.signaturesList, () => listSignatures())
   ipcMain.handle(IPC.signaturesAdd, (_event, signature: unknown) => addSignature(signature))

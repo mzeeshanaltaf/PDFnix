@@ -57,6 +57,8 @@ export function shortcutFor(key: KeyInfo, context: KeyContext): ShortcutAction |
         return context.typing ? null : command(key.shiftKey ? 'edit.redo' : 'edit.undo')
       case 'y':
         return context.typing || key.shiftKey ? null : command('edit.redo')
+      case 'p':
+        return key.shiftKey ? null : command('file.print')
       case 'w':
       case 'F4':
         return key.shiftKey ? null : command('file.closeTab')

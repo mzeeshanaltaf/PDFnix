@@ -64,6 +64,7 @@ export const MENU_COMMANDS = [
   'file.closeTab',
   'file.properties',
   'file.preferences',
+  'file.print',
   'edit.undo',
   'edit.redo',
   'edit.delete',
@@ -115,7 +116,16 @@ export const MENU_COMMANDS = [
   'document.headerFooter',
   'forms.highlight',
   'forms.reset',
-  'forms.flatten'
+  'forms.flatten',
+  'tools.compress',
+  'tools.protect',
+  'tools.ocr',
+  'tools.ocrLanguages',
+  'convert.toWord',
+  'convert.toImages',
+  'convert.toText',
+  'convert.imagesToPdf',
+  'convert.wordToPdf'
 ] as const
 
 export type MenuCommand = (typeof MENU_COMMANDS)[number]
@@ -135,6 +145,8 @@ export interface MenuState {
   redoName: string | null
   /** An annotation is selected, so Edit > Delete removes it. */
   canDelete: boolean
+  /** Microsoft Word or LibreOffice was found, so Word documents can be converted. */
+  canConvertWord: boolean
 }
 
 export const EMPTY_MENU_STATE: MenuState = {
@@ -144,7 +156,8 @@ export const EMPTY_MENU_STATE: MenuState = {
   canRedo: false,
   undoName: null,
   redoName: null,
-  canDelete: false
+  canDelete: false,
+  canConvertWord: false
 }
 
 /** Settings the user can change. Persisted by main. */
@@ -187,11 +200,53 @@ export interface NewSignature {
 /** The answer to "Save changes to … before closing?". */
 export type UnsavedChoice = 'save' | 'discard' | 'cancel'
 
-/** What `files.choose` asks for. */
-export type FileChoice = 'pdf' | 'pdfs' | 'image'
+/**
+ * What `files.choose` asks for: one PDF, several PDFs, one picture to place
+ * (PNG/JPEG), several pictures to make a PDF of, or one Word document.
+ */
+export type FileChoice = 'pdf' | 'pdfs' | 'image' | 'images' | 'word'
 
 export function isFileChoice(value: unknown): value is FileChoice {
-  return value === 'pdf' || value === 'pdfs' || value === 'image'
+  return (
+    value === 'pdf' ||
+    value === 'pdfs' ||
+    value === 'image' ||
+    value === 'images' ||
+    value === 'word'
+  )
+}
+
+/** What a Save dialog saves: a PDF, a Word document or plain text. */
+export type SaveKind = 'pdf' | 'docx' | 'txt'
+
+export function isSaveKind(value: unknown): value is SaveKind {
+  return value === 'pdf' || value === 'docx' || value === 'txt'
+}
+
+/** Files PDFnix writes that `files.openExternally` may open in their own program. */
+export const EXTERNAL_EXTENSIONS = ['.pdf', '.docx', '.txt', '.png', '.jpg'] as const
+
+/** A printer, as the Print dialog lists it. */
+export interface PrinterInfo {
+  name: string
+  isDefault: boolean
+  /** The printer says it can print on both sides. */
+  duplex: boolean
+  color: boolean
+}
+
+export interface PrintRequest {
+  /** The temporary file the engine wrote (`POST /docs/{id}/print-file`); deleted after printing. */
+  path: string
+  printer: string
+  /** 1-based ranges as SumatraPDF takes them ("1-3,5"); omit for all pages. */
+  pages?: string
+  copies: number
+  orientation?: 'portrait' | 'landscape'
+  /** Fit the page to the paper, print at actual size, or shrink only if too big. */
+  scale: 'fit' | 'noscale' | 'shrink'
+  monochrome: boolean
+  side?: 'simplex' | 'duplexlong' | 'duplexshort'
 }
 
 export type Unsubscribe = () => void
@@ -231,13 +286,15 @@ export interface Api {
     /** Shows the Open dialog. Resolves with the chosen paths (none if cancelled). */
     showOpenDialog(): Promise<string[]>
     /** Shows the Save As dialog, starting at `defaultPath`. Null if cancelled. */
-    showSaveDialog(defaultPath: string, title?: string): Promise<string | null>
+    showSaveDialog(defaultPath: string, title?: string, kind?: SaveKind): Promise<string | null>
     /** Shows an Open dialog for one PDF, several PDFs or one picture (PNG/JPEG). */
     choose(kind: FileChoice, title?: string): Promise<string[]>
     /** Shows a folder picker. Null if cancelled. */
     chooseFolder(defaultPath?: string, title?: string): Promise<string | null>
     /** Opens Explorer with the file selected. */
     showInFolder(path: string): void
+    /** Opens a file PDFnix wrote (Word, text, picture) in its usual program. */
+    openExternally(path: string): Promise<void>
     /** The path on disk of a dropped file, or '' if it has none. */
     pathForFile(file: File): string
     /**
@@ -256,6 +313,11 @@ export interface Api {
   menu: {
     onCommand(listener: (command: MenuCommand) => void): Unsubscribe
     setState(state: MenuState): void
+  }
+  print: {
+    printers(): Promise<PrinterInfo[]>
+    /** Prints the file and then deletes it. Rejects with a readable message. */
+    print(request: PrintRequest): Promise<void>
   }
   /** The signature and initials library, stored by main in the app-data folder. */
   signatures: {
@@ -286,6 +348,7 @@ export const IPC = {
   filesChoose: 'files:choose',
   filesChooseFolder: 'files:chooseFolder',
   filesShowInFolder: 'files:showInFolder',
+  filesOpenExternally: 'files:openExternally',
   filesTakePending: 'files:takePending',
   filesOpenRequest: 'files:openRequest',
   filesGetRecent: 'files:getRecent',
@@ -299,5 +362,7 @@ export const IPC = {
   signaturesAdd: 'signatures:add',
   signaturesRename: 'signatures:rename',
   signaturesRemove: 'signatures:remove',
-  signaturesSetDefault: 'signatures:setDefault'
+  signaturesSetDefault: 'signatures:setDefault',
+  printPrinters: 'print:printers',
+  printPrint: 'print:print'
 } as const

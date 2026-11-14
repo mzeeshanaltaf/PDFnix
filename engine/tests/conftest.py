@@ -238,6 +238,65 @@ def form_pdf(tmp_path):
     return str(path)
 
 
+def picture(seed: int, width: float = 400, height: float = 300, dpi: int = 300) -> pymupdf.Pixmap:
+    """A colourful, photo-like picture (overlapping translucent circles)."""
+    import random
+
+    art = pymupdf.open()
+    page = art.new_page(width=width, height=height)
+    rng = random.Random(seed)
+    for _ in range(250):
+        page.draw_circle(
+            (rng.uniform(0, width), rng.uniform(0, height)),
+            rng.uniform(3, 40),
+            color=None,
+            fill=(rng.random(), rng.random(), rng.random()),
+            fill_opacity=0.6,
+        )
+    pixmap = page.get_pixmap(dpi=dpi)
+    art.close()
+    return pixmap
+
+
+@pytest.fixture
+def photo_pdf(tmp_path):
+    """Three pages, each with a 300 dpi photo-like picture stored losslessly
+    (about 1.5 MB in all) and a line of text."""
+    doc = pymupdf.open()
+    for number in range(1, 4):
+        page = doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+        page.insert_image(pymupdf.Rect(72, 72, 472, 372), pixmap=picture(number))
+        page.insert_text((72, 420), f"Photo page {number} caption", fontsize=14)
+    path = tmp_path / "photos.pdf"
+    doc.save(path, garbage=3, deflate=True)
+    doc.close()
+    return str(path)
+
+
+@pytest.fixture
+def run_job(client):
+    """Starts a job through the API and waits for it to finish; returns the
+    final status body."""
+    import time
+
+    def _run(type_: str, doc_id: str | None, params: dict, timeout: float = 120.0) -> dict:
+        body = {"type": type_, "params": params}
+        if doc_id is not None:
+            body["docId"] = doc_id
+        response = client.post("/v1/jobs", json=body)
+        assert response.status_code == 200, response.text
+        job_id = response.json()["jobId"]
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            status = client.get(f"/v1/jobs/{job_id}").json()
+            if status["status"] in ("done", "failed", "cancelled"):
+                return status
+            time.sleep(0.05)
+        raise AssertionError(f"job {type_} did not finish in {timeout} s")
+
+    return _run
+
+
 @pytest.fixture
 def open_doc(client):
     """Opens a file through the API and returns the response body."""

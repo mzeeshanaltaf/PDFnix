@@ -1,6 +1,12 @@
 import { BrowserWindow, dialog, shell } from 'electron'
 import { existsSync, statSync } from 'fs'
-import { IPC, type FileChoice, type RecentFile } from '../shared/api'
+import {
+  EXTERNAL_EXTENSIONS,
+  IPC,
+  type FileChoice,
+  type RecentFile,
+  type SaveKind
+} from '../shared/api'
 import {
   addToRecent,
   pdfPathsFromArgv,
@@ -94,21 +100,43 @@ export async function showOpenDialog(): Promise<string[]> {
   return result.canceled ? [] : result.filePaths
 }
 
-/** Open dialog for one PDF, several PDFs or one picture. */
+const CHOICES: Record<FileChoice, { filter: Electron.FileFilter; title: string; many: boolean }> = {
+  pdf: { filter: { name: 'PDF documents', extensions: ['pdf'] }, title: 'Choose PDF', many: false },
+  pdfs: {
+    filter: { name: 'PDF documents', extensions: ['pdf'] },
+    title: 'Choose PDFs',
+    many: true
+  },
+  image: {
+    filter: { name: 'Pictures (PNG, JPEG)', extensions: ['png', 'jpg', 'jpeg'] },
+    title: 'Choose Picture',
+    many: false
+  },
+  images: {
+    filter: {
+      name: 'Pictures (PNG, JPEG, TIFF, BMP, GIF)',
+      extensions: ['png', 'jpg', 'jpeg', 'tif', 'tiff', 'bmp', 'gif']
+    },
+    title: 'Choose Pictures',
+    many: true
+  },
+  word: {
+    filter: {
+      name: 'Word documents',
+      extensions: ['docx', 'doc', 'docm', 'dotx', 'dot', 'rtf', 'odt']
+    },
+    title: 'Choose Word Document',
+    many: false
+  }
+}
+
+/** Open dialog for one PDF, several PDFs, pictures or a Word document. */
 export async function chooseFiles(kind: FileChoice, title: unknown): Promise<string[]> {
-  const filters: Electron.FileFilter[] =
-    kind === 'image'
-      ? [{ name: 'Pictures (PNG, JPEG)', extensions: ['png', 'jpg', 'jpeg'] }]
-      : [{ name: 'PDF documents', extensions: ['pdf'] }]
+  const choice = CHOICES[kind]
   const options: Electron.OpenDialogOptions = {
-    title:
-      typeof title === 'string' && title
-        ? title
-        : kind === 'image'
-          ? 'Choose Picture'
-          : 'Choose PDF',
-    properties: kind === 'pdfs' ? ['openFile', 'multiSelections'] : ['openFile'],
-    filters: [...filters, { name: 'All files', extensions: ['*'] }]
+    title: typeof title === 'string' && title ? title : choice.title,
+    properties: choice.many ? ['openFile', 'multiSelections'] : ['openFile'],
+    filters: [choice.filter, { name: 'All files', extensions: ['*'] }]
   }
   const window = getWindow()
   const result = window
@@ -136,15 +164,22 @@ export function showInFolder(path: unknown): void {
   if (typeof path === 'string' && existsSync(path)) shell.showItemInFolder(path)
 }
 
-/** Save As: where to write the document. Null if the user cancelled. */
+const SAVE_FILTERS: Record<SaveKind, Electron.FileFilter> = {
+  pdf: { name: 'PDF documents', extensions: ['pdf'] },
+  docx: { name: 'Word documents', extensions: ['docx'] },
+  txt: { name: 'Text files', extensions: ['txt'] }
+}
+
+/** Save As: where to write a file. Null if the user cancelled. */
 export async function showSaveDialog(
   defaultPath: unknown,
-  title?: unknown
+  title?: unknown,
+  kind: SaveKind = 'pdf'
 ): Promise<string | null> {
   const options: Electron.SaveDialogOptions = {
     title: typeof title === 'string' && title ? title : 'Save As',
     defaultPath: typeof defaultPath === 'string' ? defaultPath : undefined,
-    filters: [{ name: 'PDF documents', extensions: ['pdf'] }],
+    filters: [SAVE_FILTERS[kind]],
     properties: ['showOverwriteConfirmation']
   }
   const window = getWindow()
@@ -153,7 +188,24 @@ export async function showSaveDialog(
     : await dialog.showSaveDialog(options)
   if (result.canceled || !result.filePath) return null
   // Windows adds the extension from the filter, but a typed "name." can slip through.
-  return /\.pdf$/i.test(result.filePath) ? result.filePath : `${result.filePath}.pdf`
+  const extension = `.${kind}`
+  return result.filePath.toLowerCase().endsWith(extension)
+    ? result.filePath
+    : `${result.filePath}${extension}`
+}
+
+/**
+ * Opens a file PDFnix wrote in the program Windows uses for it. Only the kinds
+ * of files PDFnix writes, so a renderer cannot start programs.
+ */
+export async function openExternally(path: unknown): Promise<void> {
+  if (typeof path !== 'string' || !existsSync(path)) throw new Error('The file does not exist.')
+  const lower = path.toLowerCase()
+  if (!EXTERNAL_EXTENSIONS.some((extension) => lower.endsWith(extension))) {
+    throw new Error('PDFnix does not open this kind of file.')
+  }
+  const failure = await shell.openPath(path)
+  if (failure) throw new Error(failure)
 }
 
 /** File > Open: show the dialog and open what was chosen. */

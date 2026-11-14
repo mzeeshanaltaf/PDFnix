@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from .errors import NotFoundError
+from .security import recovery_bytes
 from .sessions import Session, SessionRegistry, open_bytes
 
 logger = logging.getLogger("pdfengine")
@@ -82,18 +83,20 @@ class RecoveryStore:
             with session.lock:
                 if session.closed:
                     return False
-                if not session.history.modified:
+                if not session.modified:
                     self._discard_locked(session)
                     return False
                 if session.recovered_revision == session.revision:
                     return False
-                data = session.history.serialise()
+                # Encrypted as the document will be saved (a pending password
+                # change included), so the copy is never less protected.
+                data, encrypted = recovery_bytes(session)
                 revision = session.revision
                 meta = {
                     "format": _FORMAT,
                     "originalPath": session.path,
                     "fileName": os.path.basename(session.path),
-                    "encrypted": session.encrypted,
+                    "encrypted": encrypted,
                     "pageCount": session.page_count,
                     "writtenAt": datetime.now(UTC).isoformat(),
                 }
@@ -143,7 +146,7 @@ class RecoveryStore:
             with session.lock:
                 if session.closed:
                     continue
-                modified = session.history.modified
+                modified = session.modified
                 due = (
                     modified
                     and session.recovered_revision != session.revision

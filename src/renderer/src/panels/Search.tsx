@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { CaseSensitive, ChevronDown, ChevronUp, WholeWord, X, type LucideIcon } from 'lucide-react'
+import {
+  CaseSensitive,
+  ChevronDown,
+  ChevronUp,
+  ScanText,
+  WholeWord,
+  X,
+  type LucideIcon
+} from 'lucide-react'
 import { cn } from 'cn'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { FOCUS_SEARCH_EVENT } from '@/shell/commands'
+import { showToolDialog } from '@/state/dialogs'
 import { activateHit, stepSearch, updateSearch } from '@/state/documents'
 import type { DocumentTab } from '@/state/tabs'
 import { groupHits, type SearchRow } from './searchRows'
@@ -220,10 +230,20 @@ export function Search({ tab }: { tab: DocumentTab }): React.JSX.Element {
           {statusText(tab)}
         </p>
         {!tab.hasTextLayer && (
-          <p className="rounded-md bg-muted px-2 py-1.5 text-xs leading-relaxed text-muted-foreground">
-            This document has no text to search: its pages are images. It needs text recognition
-            (OCR) first.
-          </p>
+          <div className="grid gap-1.5 rounded-md bg-muted px-2 py-1.5 text-xs leading-relaxed text-muted-foreground">
+            <p>
+              This document has no text to search: its pages are images. It needs text recognition
+              (OCR) first.
+            </p>
+            <Button
+              variant="outline"
+              size="xs"
+              className="justify-self-start"
+              onClick={() => showToolDialog('ocrTabId', tab.id)}
+            >
+              <ScanText aria-hidden /> Recognise Text…
+            </Button>
+          </div>
         )}
         {search.truncated && (
           <p className="text-xs leading-relaxed text-muted-foreground">

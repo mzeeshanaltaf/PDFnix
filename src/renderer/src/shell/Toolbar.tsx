@@ -496,7 +496,13 @@ export function Toolbar(): React.JSX.Element {
         disabled={none}
         onClick={() => runCommand('file.save')}
       />
-      <ToolbarButton icon={Printer} label="Print" shortcut="Ctrl+P" disabled />
+      <ToolbarButton
+        icon={Printer}
+        label="Print"
+        shortcut="Ctrl+P"
+        disabled={none}
+        onClick={() => runCommand('file.print')}
+      />
       <Divider className="max-xl:hidden" />
       <ToolbarButton
         icon={Undo2}

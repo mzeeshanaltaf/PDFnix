@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import __version__
 from .api import build_fonts_router, build_recovery_router, build_router
 from .errors import UnauthorizedError, install_error_handlers
+from .processing_api import build_job_registry, build_jobs_router, build_processing_router
 from .recovery import RECOVERY_DELAY, RecoveryStore
 from .sessions import SessionRegistry
 from .tools_api import build_merge_router, build_tools_router
@@ -48,6 +49,7 @@ def create_app(
 
     sessions = SessionRegistry()
     recovery = RecoveryStore(recovery_dir, sessions, delay=recovery_delay)
+    jobs = build_job_registry(sessions)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -55,6 +57,7 @@ def create_app(
         try:
             yield
         finally:
+            jobs.cancel_all()
             recovery.stop()
             recovery.flush()
 
@@ -68,6 +71,7 @@ def create_app(
     )
     app.state.sessions = sessions
     app.state.recovery = recovery
+    app.state.jobs = jobs
     install_error_handlers(app)
 
     # CORS preflight requests carry no token, so the middleware answers them
@@ -98,5 +102,7 @@ def create_app(
     v1.include_router(build_fonts_router(sessions))
     v1.include_router(build_tools_router(sessions))
     v1.include_router(build_merge_router())
+    v1.include_router(build_jobs_router(jobs))
+    v1.include_router(build_processing_router(sessions))
     app.include_router(v1)
     return app

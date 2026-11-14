@@ -6,7 +6,7 @@ destination folder and then replaces the target with it in one step
 half-written mix. On any failure the temporary file is removed and the target
 is untouched.
 
-Compacting (``garbage=3``) renumbers objects, and doing that to the working
+Compacting (``garbage=3``, see ``SAVE_OPTIONS``) renumbers objects, and doing that to the working
 document would break its undo journal and change annotation ids. So the
 working document is serialised as it is (``History.serialise``, which also
 repairs what any write does to the journal), reopened as a throwaway copy, and
@@ -28,7 +28,15 @@ from typing import Any
 import pymupdf
 
 from .errors import BadRequestError, EngineError, SaveError
+from .security import encryption_options
+from .security import saved as protection_saved
 from .sessions import Session
+
+#: How every file is written: compacted (unused objects dropped, objects
+#: renumbered), streams deflated, small objects packed into object streams.
+#: Compress measures sizes with the same options, so what it promises is what
+#: Save gives.
+SAVE_OPTIONS: dict[str, int | bool] = {"garbage": 3, "deflate": True, "use_objstms": 1}
 
 # Windows error numbers.
 _ERROR_SHARING_VIOLATION = 32
@@ -98,18 +106,20 @@ def write_document(doc: pymupdf.Document, target: str) -> int:
     size."""
     return _write_atomically(
         target,
-        lambda temp: doc.save(temp, garbage=3, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP),
+        lambda temp: doc.save(temp, encryption=pymupdf.PDF_ENCRYPT_KEEP, **SAVE_OPTIONS),
     )
 
 
 def write_pdf(session: Session, target: str) -> int:
-    """Writes the document to ``target`` atomically. Returns the file size."""
+    """Writes the document to ``target`` atomically, with the protection the
+    session wants (its own encryption unless changed, ``security.py``).
+    Returns the file size."""
 
     def write(temp: str) -> None:
         with session.lock:
             copy = open_copy(session)
             try:
-                copy.save(temp, garbage=3, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
+                copy.save(temp, **encryption_options(session), **SAVE_OPTIONS)
             finally:
                 copy.close()
 
@@ -127,28 +137,46 @@ def check_target(target: str) -> None:
         raise SaveError("file_read_only", f"{os.path.basename(target)} is read-only.")
 
 
-def _write_atomically(target: str, write: Callable[[str], None]) -> int:
-    """Calls ``write(temp)`` for a temporary file next to ``target``, then
-    puts it in place. Returns the file size."""
+def reserve_temp(target: str, suffix: str = ".pdfnix-tmp") -> str:
+    """Creates an empty temporary file next to ``target`` (same folder, so
+    ``commit_temp`` is a rename) and returns its path. Writers that are not
+    ``write_document`` (child processes, converters) write there and then call
+    ``commit_temp``; on failure they remove it (``discard_temp``)."""
     folder = os.path.dirname(target) or "."
     check_target(target)
-
     try:
         handle, temp = tempfile.mkstemp(
-            prefix=f".{os.path.basename(target)}.", suffix=".pdfnix-tmp", dir=folder
+            prefix=f".{os.path.basename(target)}.", suffix=suffix, dir=folder
         )
         os.close(handle)
     except OSError as exc:
         raise _explain(exc, target, "write") from None
+    return temp
 
+
+def commit_temp(temp: str, target: str) -> int:
+    """Puts a finished temporary file in place of ``target``. Returns its size."""
+    size = os.path.getsize(temp)
+    try:
+        os.replace(temp, target)
+    except OSError as exc:
+        raise _explain(exc, target, "replace") from None
+    return size
+
+
+def discard_temp(temp: str | None) -> None:
+    if temp:
+        with contextlib.suppress(OSError):
+            os.remove(temp)
+
+
+def _write_atomically(target: str, write: Callable[[str], None]) -> int:
+    """Calls ``write(temp)`` for a temporary file next to ``target``, then
+    puts it in place. Returns the file size."""
+    temp = reserve_temp(target)
     try:
         write(temp)
-        size = os.path.getsize(temp)
-        try:
-            os.replace(temp, target)
-        except OSError as exc:
-            raise _explain(exc, target, "replace") from None
-        return size
+        return commit_temp(temp, target)
     except EngineError:
         raise
     except OSError as exc:
@@ -174,6 +202,7 @@ def save_session(session: Session, path: str | None) -> dict[str, Any]:
         session.file_size = write_pdf(session, target)
         session.path = target
         session.history.mark_saved()
+        protection_saved(session)
         return {
             "path": session.path,
             "fileName": os.path.basename(session.path),

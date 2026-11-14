@@ -548,6 +548,133 @@ export interface UndoResult extends MutationResult {
   redone?: string
 }
 
+// --- Jobs (phase 6) ------------------------------------------------------------
+
+export type JobStatusName = 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
+
+export type JobType =
+  | 'compress'
+  | 'ocr'
+  | 'ocr-language'
+  | 'pdf-to-docx'
+  | 'pdf-to-images'
+  | 'pdf-to-text'
+  | 'images-to-pdf'
+  | 'docx-to-pdf'
+
+/** A job's state, as `GET /jobs/{jobId}` reports it. */
+export interface JobSnapshot<R = unknown> {
+  jobId: string
+  type: string
+  docId: string | null
+  status: JobStatusName
+  /** 0..1 */
+  progress: number
+  /** The current step ("Recognising page 3 (2 of 5)"). */
+  message: string
+  result?: R
+  error?: { code: string; message: string; [key: string]: unknown }
+}
+
+export type CompressPreset = 'light' | 'balanced' | 'strong'
+
+export interface CompressParams {
+  preset: CompressPreset
+  grayscale?: boolean
+  output: 'replace' | 'file'
+  outPath?: string
+}
+
+/** Compress: sizes as Save would write them; with `smaller` false nothing changed. */
+export type CompressResult = {
+  smaller: boolean
+  originalSize: number
+  newSize: number
+  output: 'replace' | 'file'
+  /** `output: 'file'`. */
+  path?: string
+  fileName?: string
+} & Partial<MutationResult>
+
+export interface OcrParams {
+  pages?: number[]
+  languages: string[]
+  dpi: number
+  skipPagesWithText: boolean
+}
+
+export type OcrResult = {
+  pagesProcessed: number
+  pagesSkipped: number
+  wordsFound: number
+  hasTextLayer: boolean
+} & Partial<MutationResult>
+
+export interface OcrLanguage {
+  code: string
+  name: string
+  sizeKb: number
+  installed: boolean
+  /** Comes with PDFnix (cannot be removed). */
+  bundled: boolean
+}
+
+/** A file a conversion wrote. */
+export interface ConvertedFile {
+  path: string
+  fileName: string
+  size: number
+  pageCount?: number
+}
+
+export interface ImagesResult {
+  files: ConvertedFile[]
+  folder: string
+}
+
+export interface Converters {
+  word: boolean
+  libreOffice: boolean
+  using: 'word' | 'libreoffice' | null
+}
+
+// --- Protection ----------------------------------------------------------------
+
+export interface SecurityPermissions {
+  print: boolean
+  copy: boolean
+  modify: boolean
+  annotate: boolean
+  fillForms: boolean
+}
+
+export interface SecurityDescription {
+  encrypted: boolean
+  method: string | null
+  hasOpenPassword: boolean
+  permissions: SecurityPermissions | null
+}
+
+export interface SecurityState extends HistoryState {
+  revision: number
+  /** What the file has now (after the last save). */
+  current: SecurityDescription
+  /** What the next save writes, if it differs. */
+  pending: ({ action: 'set' } & SecurityDescription) | { action: 'remove' } | null
+  /** Protection can be changed without the owner password. */
+  ownerAccess: boolean
+}
+
+export type SecurityChange = SecurityState & MutationResult
+
+export interface ProtectionRequest {
+  userPassword?: string
+  ownerPassword?: string
+  permissions: SecurityPermissions
+  /** The owner password of a protected file that was opened without it. */
+  currentPassword?: string
+}
+
 export type ImageFormat = 'auto' | 'png' | 'jpeg'
 
 let connection: Promise<EngineConnection> | null = null
@@ -870,6 +997,48 @@ export const engine = {
     cleanMetadata = true
   ): Promise<MutationResult & { metadataCleaned: boolean }> =>
     request('POST', `${doc(docId)}/redactions/apply`, { body: { cleanMetadata } }),
+
+  // --- Jobs ------------------------------------------------------------------
+
+  startJob: <R = unknown>(
+    type: JobType,
+    docId: string | null,
+    params: object
+  ): Promise<JobSnapshot<R>> =>
+    request<JobSnapshot<R>>('POST', '/jobs', {
+      body: docId === null ? { type, params } : { type, docId, params }
+    }),
+
+  jobStatus: <R = unknown>(jobId: string, signal?: AbortSignal): Promise<JobSnapshot<R>> =>
+    request<JobSnapshot<R>>('GET', `/jobs/${encodeURIComponent(jobId)}`, { signal }),
+
+  cancelJob: (jobId: string): Promise<JobSnapshot> =>
+    request<JobSnapshot>('POST', `/jobs/${encodeURIComponent(jobId)}/cancel`),
+
+  // --- Protection, OCR languages, converters, printing ------------------------
+
+  security: (docId: string): Promise<SecurityState> =>
+    request<SecurityState>('GET', `${doc(docId)}/security`),
+
+  /** Applied on the next save. Error `owner_password_required` (`details.wrong`). */
+  setSecurity: (docId: string, protection: ProtectionRequest): Promise<SecurityChange> =>
+    request<SecurityChange>('POST', `${doc(docId)}/security`, { body: protection }),
+
+  removeSecurity: (docId: string, currentPassword?: string): Promise<SecurityChange> =>
+    request<SecurityChange>('DELETE', `${doc(docId)}/security`, {
+      body: currentPassword === undefined ? {} : { currentPassword }
+    }),
+
+  ocrLanguages: (): Promise<OcrLanguage[]> => request<OcrLanguage[]>('GET', '/ocr/languages'),
+
+  removeOcrLanguage: (code: string): Promise<{ removed: boolean }> =>
+    request('DELETE', `/ocr/languages/${encodeURIComponent(code)}`),
+
+  converters: (): Promise<Converters> => request<Converters>('GET', '/convert/converters'),
+
+  /** The document as it is now, unencrypted, in a temporary file for printing. */
+  printFile: (docId: string): Promise<{ path: string }> =>
+    request<{ path: string }>('POST', `${doc(docId)}/print-file`),
 
   // --- Watermark, header and footer ----------------------------------------
 

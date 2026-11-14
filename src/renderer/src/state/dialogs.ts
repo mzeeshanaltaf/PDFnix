@@ -25,7 +25,17 @@ interface DialogsState {
   redactTabId: string | null
   watermarkTabId: string | null
   headerFooterTabId: string | null
+  compressTabId: string | null
+  protectTabId: string | null
+  ocrTabId: string | null
+  printTabId: string | null
+  ocrLanguagesOpen: boolean
+  /** PDF to Word, images or text for a tab. */
+  convert: { tabId: string; kind: ConvertKind } | null
+  imagesToPdfOpen: boolean
 }
+
+export type ConvertKind = 'word' | 'images' | 'text'
 
 export const useDialogs = create<DialogsState>(() => ({
   password: null,
@@ -37,11 +47,26 @@ export const useDialogs = create<DialogsState>(() => ({
   mergeOpen: false,
   redactTabId: null,
   watermarkTabId: null,
-  headerFooterTabId: null
+  headerFooterTabId: null,
+  compressTabId: null,
+  protectTabId: null,
+  ocrTabId: null,
+  printTabId: null,
+  ocrLanguagesOpen: false,
+  convert: null,
+  imagesToPdfOpen: false
 }))
 
 export type ToolDialog =
-  'organiseTabId' | 'splitTabId' | 'redactTabId' | 'watermarkTabId' | 'headerFooterTabId'
+  | 'organiseTabId'
+  | 'splitTabId'
+  | 'redactTabId'
+  | 'watermarkTabId'
+  | 'headerFooterTabId'
+  | 'compressTabId'
+  | 'protectTabId'
+  | 'ocrTabId'
+  | 'printTabId'
 
 /** Opens (with a tab id) or closes (null) one of the document tool dialogs. */
 export function showToolDialog(dialog: ToolDialog, tabId: string | null): void {
@@ -50,6 +75,18 @@ export function showToolDialog(dialog: ToolDialog, tabId: string | null): void {
 
 export function showMerge(open: boolean): void {
   useDialogs.setState({ mergeOpen: open })
+}
+
+export function showConvert(tabId: string | null, kind: ConvertKind = 'word'): void {
+  useDialogs.setState({ convert: tabId ? { tabId, kind } : null })
+}
+
+export function showOcrLanguages(open: boolean): void {
+  useDialogs.setState({ ocrLanguagesOpen: open })
+}
+
+export function showImagesToPdf(open: boolean): void {
+  useDialogs.setState({ imagesToPdfOpen: open })
 }
 
 export interface Confirmation {

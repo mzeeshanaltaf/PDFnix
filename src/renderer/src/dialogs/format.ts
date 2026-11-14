@@ -18,6 +18,27 @@ export function formatBytes(bytes: number): string {
   return `${rounded} ${UNITS[unit]} (${exact})`
 }
 
+/** "1.4 MB": the short form of `formatBytes`. */
+export function formatSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return ''
+  if (bytes < 1024) return `${Math.round(bytes)} bytes`
+  let value = bytes
+  let unit = 0
+  while (value >= 1024 && unit < UNITS.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+  const rounded =
+    value >= 100 ? value.toFixed(0) : value >= 10 ? value.toFixed(1) : value.toFixed(2)
+  return `${rounded} ${UNITS[unit]}`
+}
+
+/** "4.2 MB → 1.1 MB (74 % smaller)". */
+export function formatSaving(before: number, after: number): string {
+  const percent = before > 0 ? Math.round((1 - after / before) * 100) : 0
+  return `${formatSize(before)} → ${formatSize(after)} (${percent} % smaller)`
+}
+
 /** An ISO date as the user's locale writes dates; '' for none or nonsense. */
 export function formatDate(iso: string | null, locale?: string): string {
   if (!iso) return ''

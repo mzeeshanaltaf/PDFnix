@@ -76,3 +76,8 @@ export function formatPageRanges(pages: readonly number[]): string {
   }
   return out.join(', ')
 }
+
+/** 0-based pages as the page list SumatraPDF prints: [0, 1, 2, 6] → "1-3,7". */
+export function printerPageRanges(pages: readonly number[]): string {
+  return formatPageRanges(pages).replace(/, /g, ',')
+}

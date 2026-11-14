@@ -8,11 +8,15 @@ import type { MenuCommand } from '../../../shared/api'
 import {
   askPageRange,
   confirmAction,
+  showConvert,
+  showImagesToPdf,
   showMerge,
+  showOcrLanguages,
   showPreferences,
   showProperties,
   showToolDialog
 } from '@/state/dialogs'
+import { wordToPdf } from '@/state/processing'
 import { commitFormInput, flattenForm, resetForm, useForms } from '@/state/forms'
 import { extractPages, insertBlank, insertFromFile } from '@/state/pageOps'
 import { redactCommand } from '@/state/redaction'
@@ -143,6 +147,18 @@ export function runCommand(command: CommandId): void {
     showMerge(true)
     return
   }
+  if (command === 'tools.ocrLanguages') {
+    showOcrLanguages(true)
+    return
+  }
+  if (command === 'convert.imagesToPdf') {
+    showImagesToPdf(true)
+    return
+  }
+  if (command === 'convert.wordToPdf') {
+    void wordToPdf()
+    return
+  }
 
   // Everything else acts on the open document.
   const tab = getActiveTab()
@@ -185,6 +201,29 @@ export function runCommand(command: CommandId): void {
       break
     case 'document.split':
       showToolDialog('splitTabId', tab.id)
+      break
+    // Jobs read the document as the engine has it, so whatever is being
+    // placed or typed goes in first (the dialogs' actions do that).
+    case 'file.print':
+      showToolDialog('printTabId', tab.id)
+      break
+    case 'tools.compress':
+      showToolDialog('compressTabId', tab.id)
+      break
+    case 'tools.protect':
+      showToolDialog('protectTabId', tab.id)
+      break
+    case 'tools.ocr':
+      showToolDialog('ocrTabId', tab.id)
+      break
+    case 'convert.toWord':
+      showConvert(tab.id, 'word')
+      break
+    case 'convert.toImages':
+      showConvert(tab.id, 'images')
+      break
+    case 'convert.toText':
+      showConvert(tab.id, 'text')
       break
     case 'document.redact':
       showToolDialog('redactTabId', tab.id)

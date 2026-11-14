@@ -47,6 +47,10 @@ class Step:
     #: True if the change reorders, adds or removes pages. Page indexes then
     #: mean different pages before and after, so the app reloads every page.
     structure: bool = False
+    #: True if the change replaced objects in place (``swap.py``): MuPDF's
+    #: cache of decoded images and fonts is emptied whenever the step is
+    #: applied, undone or redone, so nothing stale is drawn.
+    purge: bool = False
 
 
 class History:
@@ -111,6 +115,8 @@ class History:
             raise BadRequestError("There is nothing to undo.")
         step = self._steps[self.position - 1]
         self._doc.journal_undo()
+        if step.purge:
+            pymupdf.TOOLS.store_shrink(100)
         return step
 
     def redo(self) -> Step:
@@ -118,6 +124,8 @@ class History:
             raise BadRequestError("There is nothing to redo.")
         step = self._steps[self.position]
         self._doc.journal_redo()
+        if step.purge:
+            pymupdf.TOOLS.store_shrink(100)
         return step
 
     @property

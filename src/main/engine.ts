@@ -42,6 +42,13 @@ function resolveLaunch(): Launch {
   }
 }
 
+/** Where the bundled OCR language data is (`resources/tessdata` in the project). */
+function bundledTessdata(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'tessdata')
+    : join(app.getAppPath(), 'resources', 'tessdata')
+}
+
 /** Ends the process and everything it started (uv -> python launcher -> python). */
 function killTree(child: ChildProcess): void {
   if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
@@ -150,6 +157,9 @@ export class EngineManager extends EventEmitter<EngineManagerEvents> {
           PDFENGINE_ALLOWED_ORIGINS: this.allowedOrigins.join(','),
           // Copies of documents with unsaved changes, offered after a crash.
           PDFENGINE_RECOVERY_DIR: join(app.getPath('userData'), 'recovery'),
+          // OCR language data: English comes with the app, others are downloaded.
+          PDFENGINE_TESSDATA_BUNDLED: bundledTessdata(),
+          PDFENGINE_TESSDATA_DIR: join(app.getPath('userData'), 'tessdata'),
           PYTHONUNBUFFERED: '1',
           PYTHONIOENCODING: 'utf-8'
         },
