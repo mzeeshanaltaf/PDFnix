@@ -1,3 +1,5 @@
+import os
+
 import pymupdf
 import pytest
 
@@ -17,6 +19,7 @@ def test_health_with_valid_token(client):
     assert body["pymupdfVersion"] == pymupdf.__version__
     assert body["mupdfVersion"]
     assert body["openDocuments"] == 0
+    assert body["pid"] == os.getpid()
 
 
 def test_health_without_token_is_401(anonymous_client):

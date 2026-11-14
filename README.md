@@ -1,18 +1,16 @@
 # PDFnix
 
-A PDF reader and editor for Windows. The app is built with Electron, React and TypeScript, and a bundled Python engine (FastAPI + PyMuPDF) does all the PDF work: it opens documents, renders pages, extracts text and searches.
+A PDF reader and editor for Windows. The app is built with Electron, React and TypeScript; a bundled Python engine (FastAPI + PyMuPDF) does all the PDF work. The installer ships both, so the installed app needs neither Node nor Python.
 
-The project is built in seven phases. Phases 1 (foundation), 2 (viewer) and 3 (annotations and save) are complete, so PDFnix is currently a **reader that can annotate and save**:
+What it does:
 
-- Open PDFs from the Open dialog, by dragging them onto the window, from the command line, or from the recent-files list. Password-protected files are supported.
-- One tab per document. Each tab keeps its own page, zoom, layout, side panel and search.
-- Zoom from 10 % to 800 % (Ctrl+wheel, Ctrl +/−/0, fit width, fit page). Continuous, single-page and two-page layouts. Rotate one page or all pages.
-- Select and copy text. Search with match case and whole word; hits are highlighted on the pages.
-- Page thumbnails, the document outline, and a properties dialog.
-- Highlight, underline and strike out text (H, U, K), add sticky notes (N) and comment on any annotation. Recolour, move and delete annotations; all comments are listed in the Comments panel.
-- Undo and redo every change (Ctrl+Z, Ctrl+Y). Save (Ctrl+S) and Save As (Ctrl+Shift+S); protected files stay protected. Unsaved changes are asked about on close and kept in recovery copies if the app stops unexpectedly.
+- **Read**: tabs, zoom (10–800 %), continuous / single / two-page layouts, rotation, thumbnails, outline, text selection and copy, search.
+- **Annotate**: highlight, underline, strikeout, notes and comments, text boxes, shapes, freehand drawing, with undo and redo of every change.
+- **Edit**: replace text in place, add and delete pictures, signatures and initials (drawn, typed or scanned).
+- **Pages and documents**: reorder, insert, delete, rotate, extract, split, merge; fill and flatten forms; redact; watermarks, headers and footers.
+- **Process**: compress, password protection, OCR (English included, more languages downloadable), PDF to Word / pictures / text, pictures to PDF, Word to PDF (with Microsoft Word or LibreOffice), printing.
 
-Content editing and signatures arrive in phase 4. The full plan is in [docs/plan](docs/plan), and the current state is in [docs/plan/STATUS.md](docs/plan/STATUS.md).
+A short guide for people using the app is in [docs/user-guide.md](docs/user-guide.md). The plan the app was built from is in [docs/plan](docs/plan), with its current state in [docs/plan/STATUS.md](docs/plan/STATUS.md).
 
 ## Requirements
 
@@ -23,96 +21,77 @@ Content editing and signatures arrive in phase 4. The full plan is in [docs/plan
 
 ## Getting started
 
-Clone the repository and install the app's dependencies:
-
 ```powershell
 git clone https://github.com/mzeeshanaltaf/PDFnix.git
 cd PDFnix
 pnpm install
-```
-
-Install the engine's Python environment:
-
-```powershell
 uv sync --directory engine
-```
-
-Skipping this step also works: the first start runs `uv`, which creates the environment itself. That first start then takes a minute or two.
-
-## Running the application
-
-```powershell
 pnpm dev
 ```
 
-This starts the app in development mode with hot reload. The app starts the Python engine itself; you never start it by hand. When the status bar at the bottom right reads **Engine connected**, open a PDF with **Open PDF…**, Ctrl+O, or by dropping a file onto the window.
+`pnpm dev` starts the app with hot reload and starts the engine itself (through `uv`). When the status bar reads **Engine connected**, open a PDF with Ctrl+O or by dropping it on the window. Development keeps its settings, signatures and recovery copies in `%APPDATA%\PDFnix-dev`; the installed app uses `%APPDATA%\PDFnix`.
 
-To open a file on start, run the app with its path. To get a production build that runs without the development server:
+> **Running from a terminal inside VS Code?** It can set `ELECTRON_RUN_AS_NODE=1`, which makes Electron start as plain Node (`Cannot read properties of undefined (reading 'isPackaged')`). Clear it first: `Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue`.
+
+## Building the installer
 
 ```powershell
-pnpm build
-node_modules\electron\dist\electron.exe . "C:\path\to\document.pdf"
+pnpm dist
 ```
 
-Only one copy of PDFnix runs at a time. Starting it again with a file path opens that file in the window that is already open.
+This runs, in order: lint, type-check, app tests, engine tests, `build:engine` (freezes the engine with PyInstaller into `dist-engine/pdfengine/`), `smoke:engine` (starts the frozen engine and runs health, render, OCR, compress and PDF → Word through it), `notices` (writes `resources/licenses/THIRD-PARTY-NOTICES.txt`), the app build, and electron-builder. The result is `release/PDFnix-<version>-setup.exe`.
 
-> **Running from a terminal inside VS Code?** VS Code's terminal (and tools running in it) can set `ELECTRON_RUN_AS_NODE=1`, which makes Electron start as plain Node. The app then fails with `Cannot read properties of undefined (reading 'isPackaged')`. Clear the variable first:
->
-> ```powershell
-> Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
-> pnpm dev
-> ```
+`pnpm dist:dir` builds only the unpacked app (`release/win-unpacked/PDFnix.exe`), which is quicker for checks.
 
-Development keeps its settings (theme and recent files) in `%APPDATA%\PDFnix-dev`.
+The installer installs for the current user by default and offers an all-users installation. It adds a Start menu shortcut, offers a desktop shortcut on its last page, and registers PDFnix for `.pdf` files ("Open with", and Settings → Apps → Default apps). Uninstalling removes the program; it asks before deleting settings, signatures, recovery copies and downloaded OCR languages.
 
-## Keyboard shortcuts
+**The installer is not signed.** Windows SmartScreen shows "Windows protected your PC" when it is run; choose **More info → Run anyway**. Signing needs a purchased code-signing certificate, which is outside this project.
 
-| Action                   | Keys                                              |
-| ------------------------ | ------------------------------------------------- |
-| Open                     | Ctrl+O                                            |
-| Close tab                | Ctrl+W, or middle-click the tab                   |
-| Next / previous tab      | Ctrl+Tab / Ctrl+Shift+Tab                         |
-| Find                     | Ctrl+F; then Enter / Shift+Enter or F3 / Shift+F3 |
-| Zoom in / out / 100 %    | Ctrl + / Ctrl − / Ctrl+0, or Ctrl+mouse wheel     |
-| Fit width / fit page     | Ctrl+1 / Ctrl+2                                   |
-| Rotate page right / left | Ctrl+R / Ctrl+Shift+R                             |
-| Next / previous page     | → / ←                                             |
-| First / last page        | Home / End                                        |
-| Side panel               | F4                                                |
-| Document properties      | Ctrl+D                                            |
+## Tests
 
-## Development commands
+| What                                   | Command                  | Needs first     |
+| -------------------------------------- | ------------------------ | --------------- |
+| App unit tests (Vitest)                | `pnpm test`              |                 |
+| Engine tests (pytest)                  | `pnpm test:engine`       |                 |
+| Frozen engine smoke test               | `pnpm smoke:engine`      | `build:engine`  |
+| End-to-end tests (Playwright)          | `pnpm test:e2e`          | `pnpm build`    |
+| End-to-end smoke tests, packaged app   | `pnpm test:e2e:packaged` | `pnpm dist:dir` |
+| Large-file check (1,000 pages, 500 MB) | `pnpm test:perf`         | `pnpm build`    |
 
-Run these from the project root.
+The end-to-end tests start the real app with a throwaway profile (`PDFNIX_USER_DATA`), drive it with real mouse and keyboard input, answer native dialogs by replacing them in the main process, and check results through the engine's API. Sample PDFs are generated by `tests/e2e/make_fixtures.py`.
 
-| Purpose                           | Command            |
-| --------------------------------- | ------------------ |
-| Run the app in development        | `pnpm dev`         |
-| App tests (Vitest)                | `pnpm test`        |
-| Engine tests (pytest)             | `pnpm test:engine` |
-| Lint (ESLint and ruff)            | `pnpm lint`        |
-| Type-check                        | `pnpm typecheck`   |
-| Format (Prettier and ruff format) | `pnpm format`      |
-| Production build of the app code  | `pnpm build`       |
+## Other commands
 
-Building an installer is set up in phase 7.
+| Purpose                            | Command          |
+| ---------------------------------- | ---------------- |
+| Lint (ESLint and ruff)             | `pnpm lint`      |
+| Type-check                         | `pnpm typecheck` |
+| Format (Prettier and ruff format)  | `pnpm format`    |
+| Production build of the app code   | `pnpm build`     |
+| Redraw the app and document icons  | `pnpm icons`     |
+| Regenerate the third-party notices | `pnpm notices`   |
 
 ## Project layout
 
 ```
 src/
-  main/       Electron main process: window, menu, engine lifecycle, files, recent files
+  main/       Electron main process: window, menu, engine lifecycle, files, printing, settings
   preload/    The small typed bridge exposed to the page as window.api
   shared/     Types and IPC channel names shared by main, preload and renderer
-  renderer/   React UI: shell, viewer, side panels, dialogs, state stores
+  renderer/   React UI: shell, viewer, tools, side panels, dialogs, state stores
 engine/
-  pdfengine/  The Python engine: HTTP API, sessions, rendering, text, search, pages
+  pdfengine/  The Python engine: HTTP API, sessions, rendering, editing, jobs
   tests/      Engine tests
-docs/plan/    The phase plans and STATUS.md
+  pdfengine.spec, engine_entry.py, smoke_frozen.py   Freezing and checking the engine
+build/        Icons and the installer's NSIS additions
+resources/    OCR language data and licence notices shipped with the app
+scripts/      Icon and licence-notice generators
+tests/e2e/    End-to-end tests;  tests/perf/  the large-file check
+docs/         User guide; plan/ holds the phase plans and STATUS.md
 ```
 
-The engine listens only on `127.0.0.1`, on a random port. It accepts requests only with a token generated for each launch, and it exits when the app does.
+The engine listens only on `127.0.0.1`, on a random port, accepts requests only with a token generated for each launch, and exits when the app does. Its log is `%APPDATA%\PDFnix\logs\engine.log`.
 
 ## Licence
 
-PDFnix uses PyMuPDF/MuPDF, which are licensed under the AGPL. The project is intended for personal and internal use.
+PDFnix uses PyMuPDF and MuPDF, which are licensed under the GNU AGPL v3 (or commercially by Artifex), and SumatraPDF (GPL v3) for printing. This build is intended for personal and internal use; distributing it to others would need those terms revisited first. All third-party notices are in `resources/licenses/THIRD-PARTY-NOTICES.txt` (generated) and in the app under Help → About.

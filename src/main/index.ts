@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
 import { join } from 'path'
 import { EngineManager, type EngineStartError } from './engine'
+import appIcon from '../../build/icon.ico?asset'
 import { IPC } from '../shared/api'
 import {
   initFiles,
@@ -20,6 +21,11 @@ const DEV_RENDERER_URL = app.isPackaged ? undefined : process.env['ELECTRON_REND
 // dev session and an installed copy do not interfere with each other.
 if (!app.isPackaged) {
   app.setPath('userData', `${app.getPath('userData')}-dev`)
+}
+// End-to-end tests run against a throwaway profile (settings, recovery copies,
+// signatures, single-instance lock) so they never touch a real one.
+if (process.env['PDFNIX_USER_DATA']) {
+  app.setPath('userData', process.env['PDFNIX_USER_DATA'])
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -62,6 +68,9 @@ function createWindow(): BrowserWindow {
     minHeight: 560,
     show: false,
     title: app.getName(),
+    // Without this, an unpackaged run shows Electron's own logo in the title
+    // bar and taskbar; the installed exe already carries the same icon.
+    icon: appIcon,
     backgroundColor: windowBackground(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

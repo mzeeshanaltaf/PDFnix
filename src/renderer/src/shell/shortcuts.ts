@@ -92,6 +92,8 @@ export function shortcutFor(key: KeyInfo, context: KeyContext): ShortcutAction |
         return context.typing ? null : command('go.firstPage')
       case 'End':
         return context.typing ? null : command('go.lastPage')
+      case '/':
+        return key.shiftKey ? null : command('help.shortcuts')
     }
     // The numeric keypad reports the same characters, except with Num Lock off.
     if (key.code === 'NumpadAdd') return command('view.zoomIn')
@@ -100,6 +102,8 @@ export function shortcutFor(key: KeyInfo, context: KeyContext): ShortcutAction |
   }
 
   switch (name) {
+    case 'F1':
+      return key.shiftKey ? null : command('help.shortcuts')
     case 'F3':
       return command(key.shiftKey ? 'edit.findPrevious' : 'edit.findNext')
     case 'F4':

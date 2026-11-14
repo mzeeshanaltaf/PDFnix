@@ -154,6 +154,20 @@ def test_close_releases_the_document(app, client, open_doc, sample_pdf):
     assert document.is_closed
 
 
+def test_list_documents(client, open_doc, sample_pdf):
+    assert client.get("/v1/docs").json() == {"documents": []}
+    doc_id = open_doc(sample_pdf)["docId"]
+
+    documents = client.get("/v1/docs").json()["documents"]
+
+    assert len(documents) == 1
+    entry = documents[0]
+    assert entry["docId"] == doc_id
+    assert entry["path"] == os.path.abspath(sample_pdf)
+    assert entry["pageCount"] >= 1
+    assert entry["modified"] is False and entry["revision"] == 0
+
+
 def test_close_all_documents(client, open_doc, sample_pdf):
     first = open_doc(sample_pdf)["docId"]
     open_doc(sample_pdf)

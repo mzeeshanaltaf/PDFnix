@@ -14,15 +14,31 @@ export function useSettled<T>(value: T, delay: number): T {
   return settled
 }
 
-function subscribeToResize(listener: () => void): () => void {
-  // The pixel ratio changes with the display the window is on and with the
-  // system's scaling; both resize the window's viewport.
+function subscribeToPixelRatio(listener: () => void): () => void {
+  // The pixel ratio changes when the window moves to a display with other
+  // scaling, or the system's scaling changes. That does not always resize the
+  // viewport in CSS pixels, so a media query for the current ratio is watched
+  // as well; it stops matching exactly when the ratio changes.
+  let media: MediaQueryList | null = null
+  const onChange = (): void => {
+    watch()
+    listener()
+  }
+  const watch = (): void => {
+    media?.removeEventListener('change', onChange)
+    media = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+    media.addEventListener('change', onChange)
+  }
+  watch()
   window.addEventListener('resize', listener)
-  return () => window.removeEventListener('resize', listener)
+  return () => {
+    media?.removeEventListener('change', onChange)
+    window.removeEventListener('resize', listener)
+  }
 }
 
 export function useDevicePixelRatio(): number {
-  return useSyncExternalStore(subscribeToResize, () => window.devicePixelRatio || 1)
+  return useSyncExternalStore(subscribeToPixelRatio, () => window.devicePixelRatio || 1)
 }
 
 export interface PageImageResult {

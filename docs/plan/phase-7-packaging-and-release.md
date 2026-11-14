@@ -77,7 +77,7 @@ Playwright driving the Electron app (`tests/e2e/`), against the development buil
 - On a **clean Windows 11 machine or virtual machine** with no Node, Python, Word or LibreOffice installed: run the installer, launch from the Start menu, and run through every feature group. Word → PDF should be disabled with its explanation.
 - Set the app as the default for `.pdf` and double-click several files; they open as tabs in one window.
 - Uninstall and confirm the program files are removed.
-- Installer size and installed size are recorded (expected around 250 MB installed because of the two runtimes).
+- Installer size and installed size are recorded (expected around 250 MB installed because of the two runtimes; measured in phase 7: ~530 MB unpacked, since Electron 44 alone is ~370 MB and pdf2docx brings OpenCV — see STATUS.md, Deviations).
 - Windows SmartScreen will warn about an unsigned installer; this is expected for a personal build and is noted in the README.
 - The full automated suite (engine, renderer, end-to-end) passes on the packaged build's smoke subset.
 

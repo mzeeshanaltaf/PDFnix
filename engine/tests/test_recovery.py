@@ -77,6 +77,26 @@ def test_copy_waits_for_the_delay(recovery_dir, sample_pdf):
         assert len(files(recovery_dir)) == 2
 
 
+def test_the_delay_can_be_changed_while_running(recovery_dir, sample_pdf):
+    app, client = make_client(recovery_dir, delay=120)
+    with client:
+        response = client.put("/v1/recovery/settings", json={"delaySeconds": 30})
+        assert response.status_code == 200
+        assert response.json() == {"delaySeconds": 30}
+        doc_id = open_doc(client, sample_pdf)
+        add_note(client, doc_id)
+        session = app.state.sessions.get(doc_id)
+
+        app.state.recovery.tick(now=session.unrecovered_since + 31)
+        assert len(files(recovery_dir)) == 2
+
+        for bad in (0, -5, 100_000, "soon"):
+            assert (
+                client.put("/v1/recovery/settings", json={"delaySeconds": bad}).status_code == 422
+            )
+        assert app.state.recovery.delay == 30
+
+
 def test_copy_is_removed_on_close_and_when_undone_to_saved(recovery_dir, sample_pdf):
     app, client = make_client(recovery_dir)
     with client:

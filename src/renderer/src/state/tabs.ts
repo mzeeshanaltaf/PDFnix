@@ -13,6 +13,24 @@ import { clampZoom, type ZoomMode } from '../viewer/zoom'
 
 export type SidePanelId = 'thumbnails' | 'outline' | 'search' | 'annotations'
 
+/** How a newly opened tab is zoomed and laid out (Settings; set by state/settings.ts). */
+let defaultView: { zoomMode: ZoomMode; layout: LayoutMode } = {
+  zoomMode: 'custom',
+  layout: 'continuous'
+}
+
+export function setDefaultView(
+  zoom: 'fit-width' | 'fit-page' | 'actual-size',
+  layout: LayoutMode
+): void {
+  defaultView = { zoomMode: zoom === 'actual-size' ? 'custom' : zoom, layout }
+}
+
+function initialView(): { zoom: number; zoomMode: ZoomMode; layout: LayoutMode } {
+  // A fit mode's zoom is worked out by the viewer once it knows its size.
+  return { zoom: 1, ...defaultView }
+}
+
 export interface SearchState {
   query: string
   matchCase: boolean
@@ -156,9 +174,7 @@ export const useTabs = create<TabsState>((set, get) => {
         history: historyOf(opened),
         selectedAnnotation: null,
         page: 0,
-        zoom: 1,
-        zoomMode: 'custom',
-        layout: 'continuous',
+        ...initialView(),
         sidePanel: { open: false, panel: 'thumbnails' },
         search: EMPTY_SEARCH,
         outline: null

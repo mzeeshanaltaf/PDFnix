@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Languages } from 'lucide-react'
+import { MAX_OCR_LANGUAGES } from '../../../shared/api'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -9,43 +10,23 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { engine, type OcrLanguage } from '@/api/engine'
 import { showOcrLanguages, showToolDialog, useDialogs } from '@/state/dialogs'
 import { recogniseText } from '@/state/processing'
+import { useSettings } from '@/state/settings'
 import { useTabs, type DocumentTab } from '@/state/tabs'
 import { PagesPicker } from './toolParts'
 import { chosenPages, type PagesChoice } from './toolOptions'
+import { useInstalledLanguages } from './useInstalledLanguages'
 
 /** At most this many languages in one run (each one slows recognition down). */
-const MAX_LANGUAGES = 3
+const MAX_LANGUAGES = MAX_OCR_LANGUAGES
 const RESOLUTIONS = [150, 200, 300, 400, 600]
-
-/** Installed languages, refreshed whenever the languages dialog closes. */
-function useInstalledLanguages(): { languages: OcrLanguage[] | null; error: string | null } {
-  const managing = useDialogs((state) => state.ocrLanguagesOpen)
-  const [languages, setLanguages] = useState<OcrLanguage[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const load = useCallback(() => {
-    engine
-      .ocrLanguages()
-      .then((all) => {
-        setLanguages(all.filter((language) => language.installed))
-        setError(null)
-      })
-      .catch((caught: unknown) =>
-        setError(caught instanceof Error ? caught.message : String(caught))
-      )
-  }, [])
-  useEffect(() => {
-    if (!managing) load()
-  }, [managing, load])
-  return { languages, error }
-}
 
 function OcrForm({ tab }: { tab: DocumentTab }): React.JSX.Element {
   const { languages, error: languageError } = useInstalledLanguages()
   const [pages, setPages] = useState<PagesChoice>({ scope: 'all', range: '' })
-  const [selected, setSelected] = useState<string[]>(['eng'])
+  // Starts with the languages chosen in Settings.
+  const [selected, setSelected] = useState<string[]>(() => useSettings.getState().ocrLanguages)
   const [dpi, setDpi] = useState(300)
   const [skipText, setSkipText] = useState(true)
 

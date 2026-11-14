@@ -2,7 +2,7 @@
 
 Single source of truth for where the project stands. Read fully at the start of every session; update during and at the end of every session. The protocol is in `CLAUDE.md` at the project root.
 
-**Last updated:** 2026-11-14 — phase 6 session (phase 6 complete with one accepted exception, committed and pushed)
+**Last updated:** 2026-11-14 — phase 7 complete (all seven phases done)
 
 ## Phases
 
@@ -14,21 +14,19 @@ Single source of truth for where the project stands. Read fully at the start of 
 | 4 | Content editing and signatures | [phase-4-content-editing-and-signatures.md](phase-4-content-editing-and-signatures.md) | Complete | 2026-11-13 | 2026-11-13 |
 | 5 | Document tools | [phase-5-document-tools.md](phase-5-document-tools.md) | Complete | 2026-11-13 | 2026-11-13 |
 | 6 | Processing jobs | [phase-6-processing-jobs.md](phase-6-processing-jobs.md) | Complete with accepted exceptions | 2026-11-13 | 2026-11-14 |
-| 7 | Packaging and release | [phase-7-packaging-and-release.md](phase-7-packaging-and-release.md) | Not started | – | – |
+| 7 | Packaging and release | [phase-7-packaging-and-release.md](phase-7-packaging-and-release.md) | Complete with accepted exceptions | 2026-11-14 | 2026-11-14 |
 
 Status values: Not started · In progress · Complete · Complete with accepted exceptions.
 
 ## Current position
 
-- **Current phase:** 7 — Packaging and release (not started)
-- **Next action:** in a new session, follow the start-of-session steps in `CLAUDE.md`, then begin phase 7 from [phase-7-packaging-and-release.md](phase-7-packaging-and-release.md). Read the phase 6 handoff note first (freezing the job child processes, tessdata and SumatraPDF resources, licence notices).
-- **Uncommitted work:** none. Phases 1–6 are committed on `main` and pushed to `origin` (the user asked for the phase 6 push). Ask before pushing later phases unless told otherwise.
+- **Current phase:** none — all seven phases are complete (phase 7 declared complete by the user on 2026-11-14)
+- **Next action:** nothing is planned. If wanted: run the installer on a clean Windows 11 machine and tick off the installation checks listed under the phase 7 handoff note's accepted exceptions; check printing on a real printer; consider code signing (SmartScreen warns without it).
+- **Uncommitted work:** none once the phase 7 commit is pushed to `origin/main` (the user asked for that on 2026-11-14).
 
 ## Current phase progress
 
-Checklist for the phase in progress. The session that starts a phase writes this list from the phase plan, ticks items as they are finished, and clears it when the phase completes (the summary then goes into the handoff note).
-
-- [ ] (to be written when phase 7 starts)
+No phase in progress. The phase 7 checklist was cleared on completion; its summary is in the phase 7 handoff note below.
 
 ## Commands
 
@@ -43,8 +41,14 @@ How to run and test the project. Run from the project root.
 | Engine tests (pytest) | `pnpm test:engine` |
 | Format (Prettier + ruff format) | `pnpm format` |
 | Production build of the app code (no installer) | `pnpm build` |
-| End-to-end tests | (phase 7) |
-| Build installer | (phase 7) |
+| End-to-end tests (Playwright, against `out/`; `pnpm build` first) | `pnpm test:e2e` |
+| End-to-end smoke tests against the packaged app (`pnpm dist:dir` first) | `pnpm test:e2e:packaged` |
+| Large-file check (writes a ~500 MB PDF to `%TEMP%\pdfnix-perf`) | `pnpm test:perf` |
+| Freeze the engine (PyInstaller → `dist-engine/pdfengine/`) | `pnpm build:engine` |
+| Smoke-test the frozen engine (optional path to another `pdfengine.exe`) | `pnpm smoke:engine` |
+| Third-party notices (`resources/licenses/`) / icons (`build/`, `resources/`) | `pnpm notices` / `pnpm icons` |
+| Unpacked packaged app (`release/win-unpacked/PDFnix.exe`) | `pnpm dist:dir` |
+| Build installer (all checks, then `release/PDFnix-<version>-setup.exe`) | `pnpm dist` |
 
 Notes for whoever runs these:
 
@@ -88,6 +92,9 @@ Versions are locked by `pnpm-lock.yaml` and `engine/uv.lock`. The ones that matt
 | pdf2docx | 0.5.13 (`==`) | PDF → Word; pinned together with PyMuPDF 2.1 (imports the legacy `fitz` name). Brings opencv-python-headless 5.0.0.93, fonttools, lxml, python-docx 1.2.0 (also a dev dependency for tests) |
 | pdf-to-printer | 5.8.1 | Printing; bundles SumatraPDF 3.4.6 (32-bit). Kept external in the main build so it finds the exe |
 | Tesseract data | `tessdata_fast` `eng.traineddata` (4,113,088 bytes, downloaded 2026-11-13) | Bundled in `resources/tessdata` with its Apache-2.0 `LICENSE`; other languages download from the same repository |
+| pyinstaller / pyinstaller-hooks-contrib | 6.22.3 / 2026.10 | Freezes the engine; engine dependency group `build` (`uv run --group build`) |
+| electron-builder | 26.18.0 (app-builder-lib) | Installer; `build/installer.nsh` uses its NSIS template macros (`customFinishPage`, `customInstall`, `customUnInstall`, `$newDesktopLink`, `${isUpdated}`) — re-check them on an upgrade |
+| @playwright/test / axe-core | 1.65.1 / 4.14.0 | End-to-end and accessibility tests |
 
 ## Verified facts
 
@@ -95,6 +102,11 @@ Answers to the "confirm against the pinned version" notes in the plans, so they 
 
 | Question | Answer | Phase | Date |
 |---|---|---|---|
+| Does a windowed (`console=False`) PyInstaller engine still talk to main through stdout, and do its job children work? | Yes: with the pipes main passes, `ENGINE_READY` arrives (0.5 s cold start) and OCR, Compress and PDF → Word run in `spawn` children of `pdfengine.exe` (`smoke_frozen.py`, packaged e2e). Children of the windowed exe have no stdio (`sys.stderr is None`); `logs.ensure_streams` covers it | 7 | 2026-11-14 |
+| Which PyMuPDF 2.1 dependencies does the engine load? | `import pymupdf` loads none of `pymupdf4llm`, `pymupdf.layout`, `onnxruntime`, `networkx`, `psutil`, `yaml`, `tabulate`; `pdf2docx` loads `cv2`, `numpy`, `lxml`, `docx`, `fontTools` (not `fire`/`termcolor`). FastAPI loads `opentelemetry` | 7 | 2026-11-14 |
+| Playwright and Electron | `_electron.launch` works with `out/` and the packaged exe; `@axe-core/playwright` fails (it opens a new page: `Target.createTarget: Not supported`), so axe-core is evaluated in the window; Playwright pins the page's `prefers-color-scheme` (check `nativeTheme` in main instead, or `page.emulateMedia`); `app.process()` throws once the app has closed (keep the handle) | 7 | 2026-11-14 |
+| What fires when the display scaling changes? | A `(resolution: Ndppx)` media query `change` event; `resize` does **not** fire (checked with CDP `Emulation.setDeviceMetricsOverride`). `useDevicePixelRatio` now watches both | 7 | 2026-11-14 |
+| `pnpm <script>` named like a pnpm command | `pnpm licenses` runs pnpm's own command, not the script (hence `pnpm notices`) | 7 | 2026-11-14 |
 | Are the pinned `pdf2docx` and PyMuPDF versions compatible? | Yes for `pdf2docx` 0.5.13 with PyMuPDF 2.1: no resolver conflict, and a two-page test PDF converted correctly (text of both pages present in the .docx). Tested in a throwaway environment; `pdf2docx` is not yet a project dependency. It imports the legacy `fitz` name, which PyMuPDF 2.1 flags as deprecated, so re-test on any PyMuPDF upgrade | 6 | 2026-11-12 |
 | How is PyMuPDF imported and how are its versions read? | `import pymupdf` (not `fitz`; the old name still works but warns). `pymupdf.__version__` is `"2.1"`, `pymupdf.mupdf_version` is `"1.28.6"`. Where later plans write `fitz.…`, use `pymupdf.…` | all | 2026-11-12 |
 | Does PyMuPDF journalling cover all edit types for undo/redo? | **Yes for phase 3's edits**: highlight/underline/strikeout/note creation, colour, opacity, contents, `set_rect` (move), `delete_annot` and `set_rotation` all undo and redo exactly; xrefs survive undo/redo; a new op after undos discards the redo steps; an op that changes nothing records no step; 200 ops + 200 undos take ~30 ms. `save(garbage=3)` and `tobytes` work with the journal on and keep the history. **Caveats:** (1) with the journal on, *any* change outside `journal_start_op`/`journal_stop_op` raises `FzErrorArgument: Can't alter an object other than in an operation` — and PyMuPDF's `Page.get_textpage`, `get_text`, `search_for`, `get_image_info` and `get_texttrace` call `set_rotation(0)` temporarily on rotated pages, so they fail there. Use `textpages.py` (builds the text page with `page._get_textpage(clip, flags, derotation_matrix)`, output identical at 0/90/180/270 and with offset cropboxes). (2) An op that raises midway keeps its partial changes as a step; `history.py` undoes it. (3) **Any write of the document** (`save`, `tobytes`, incremental or not, `pdf_write_snapshot`) **corrupts later undos**: MuPDF's `do_pdf_save_document` ends with `doc->num_incremental_sections = 0`, after which undo restores wrong objects (e.g. one undo does nothing, the next jumps back). Fix: `History.serialise()` saves that field (`pymupdf._as_pdf_document(doc).m_internal.num_incremental_sections`) before `tobytes` and restores it after; verified at every history position, encrypted and not, including new branches after a write. It is a private field — `test_undo_still_works_after_saving` guards it; re-check on every PyMuPDF upgrade. (4) `garbage` ≥ 2 additionally renumbers objects of the open document, so the working document is only written with garbage 0 and a throwaway copy is compacted. (5) A journal (`journal_save`) holds only the *old* values of changed objects, so it cannot be replayed onto the original file (`journal_load` → "Journal and document do not match"). Phase 4 confirmed (with `compat.py`): redaction with `apply_redactions`, `insert_htmlbox`, `insert_image`, `show_pdf_page`, page-content filtering, and free text/shape/ink creation and geometry changes all undo and redo exactly, also after a save, at every rotation. Re-check later edit types (insert_pdf, delete pages, full redaction, OCR) when their phase adds them | 3 (all later) | 2026-11-13 |
@@ -148,6 +160,15 @@ Anything that differs from the plan documents, or a decision the plans left open
 
 | Date | Phase | Decision or deviation | Reason | Plans updated |
 |---|---|---|---|---|
+| 2026-11-14 | 7 | The main window now gets its icon explicitly (`icon: build/icon.ico` through electron-vite's `?asset` import in `src/main/index.ts`). Before, an unpackaged run (`pnpm dev`, `electron .`) showed Electron's own atom logo in the title bar and taskbar; it now shows the same icon as Help → About. An installed build already carried it in the exe | Reported by the user after running the app | – |
+| 2026-11-14 | 7 | **Installed size is ~530 MB, not ~250 MB.** Electron 44's own runtime is ~370 MB on disk (its `electron.exe` alone 235 MB); the frozen engine is 188 MB (OpenCV 82 MB for pdf2docx, PyMuPDF 38, NumPy + OpenBLAS 27). Reduced by: en-US locale only (−47 MB), renderer-only npm packages left out of the asar (36 → 5 MB; Vite bundles them), PyMuPDF's unused dependencies excluded (onnxruntime, pymupdf4llm, `pymupdf/layout` 50 MB, networkx, psutil, yaml, tabulate, fire, termcolor), OpenCV's ffmpeg DLL (30 MB) and `mupdf-devel` dropped | The plan's estimate predates Electron 44 and pdf2docx; the remaining size is the two runtimes and OpenCV | – |
+| 2026-11-14 | 7 | Engine frozen **windowed** (`console=False`); it still writes `ENGINE_READY` to the stdout pipe main gives it (checked), and `logs.ensure_streams` replaces a missing stdio. Logging: `pdfengine/logs.py` → stderr + rotating `<userData>/logs/engine.log` (1 MB × 3); uvicorn runs with `log_config=None` so its records go there too; worker children send their traceback to the engine's log | Plan: "run without a console window; log to a rotating file" | – |
+| 2026-11-14 | 7 | Desktop shortcut is a finish-page check box and the uninstaller asks before deleting user data — both in `build/installer.nsh` (electron-builder can only create the shortcut always or never, and only deletes app data unconditionally). The installer also registers Capabilities/RegisteredApplications so PDFnix appears in Settings → Default apps; it never changes the user's default | Plan: "optional desktop shortcut", "leaves user data unless asked", "can be chosen as the default" | – |
+| 2026-11-14 | 7 | Licence notices are generated (`pnpm notices` → `resources/licenses/THIRD-PARTY-NOTICES.txt`, shipped as `resources/licenses`): engine Python closure (minus excludes) and Python itself, production npm packages, SumatraPDF (GPL-3.0 text taken from NumPy's licence file), tessdata (Apache-2.0), the four OFL fonts. pdf2docx 0.5.13 is **MIT** (not GPL). The About dialog (renderer, replaces the native box) shows versions and a summary and opens the file | Plan: About dialog with notices | – |
+| 2026-11-14 | 7 | End-to-end tests drive the app with Playwright's Electron support: own profile per test (`PDFNIX_USER_DATA`, honoured by main), files opened through main's own `files:openRequest` IPC, menu commands through `menu:command`, native dialogs replaced in the main process (`dialog.showSaveDialog`/`showMessageBox`), results checked through the engine API. Projects: `dev` (all, against `out/`), `packaged` (@smoke, against `release/win-unpacked`), `perf` (large file). Engine additions for them: `GET /v1/docs` (open sessions) and `pid` in `/v1/health` | Native dialogs cannot be clicked; the engine is the source of truth | – |
+| 2026-11-14 | 7 | Settings dialog replaces Preferences (File → Settings…, Ctrl+,; command id unchanged): theme, default zoom (**100 % stays the default**; fit width / fit page offered) and layout, author, highlight colour, default OCR languages (≤3), recovery interval 1–30 min (default 2). The interval reaches the engine at launch (`PDFENGINE_RECOVERY_DELAY`) and at once through new `PUT /v1/recovery/settings {delaySeconds}` (10–3600) | Plan task 7 list | – |
+| 2026-11-14 | 7 | Help menu: Keyboard Shortcuts (Ctrl+/, F1; reference in `shell/shortcutReference.ts`, every entry checked against `shortcutFor` by a unit test) and About | Plan task 7 | – |
+| 2026-11-14 | 7 | Renderer assets are never inlined (`assetsInlineLimit: 0`) | Vite inlines small images as `data:` URIs, which the CSP blocks for images (the About icon showed broken) | – |
 | 2026-11-13 | 6 | **A processed copy is swapped in object by object** (`swap.py`): the child records every object before working, reports the changed and new ones, and the engine writes just those into the journalled document in one step (key-level dictionary writes, `pdf_update_stream`, new objects via `get_new_xref`); MuPDF's image/font cache is emptied when such a step is applied, undone or redone (`Step.purge`). If the document's revision changed meanwhile, the job fails with `document_changed` (409) | The plan said "works on a copy and swaps it in as one undo step"; replacing the whole document would lose the undo history, and `update_object` is not journalled | – |
 | 2026-11-13 | 6 | **OCR uses Tesseract's own text layer** instead of writing each word with our own font: `pdfocr_tobytes` gives a page with the picture and an invisible GlyphLessFont text layer; the picture is removed and the layer is laid over the page with `show_pdf_page` (one undo step "Recognise Text"). Pages are rendered in RGB without annotations; very large pages are capped at 60 MP | Same result the plan describes (invisible text, scaled to each word's box, page unchanged), with Tesseract's word fitting and a Unicode-capable font; this is how OCRmyPDF does it | – |
 | 2026-11-13 | 6 | Jobs: one thread per job; OCR, Compress and PDF → Word run in `spawn` child processes (`worker.py`) that cancelling terminates; Word → PDF runs PowerShell (COM) or LibreOffice and kills them (and the Word instance) on cancel; other jobs check between pages. Job types declare a params model (bad params → 422 at start), a synchronous `prepare` (e.g. `files_exist`, `language_missing`, `converter_missing` errors before the job starts) and `run`. Only one document-changing job per document (409 `job_running`); closing a document cancels its jobs. Finished jobs are kept 10 minutes. Routes in `processing_api.py` | MuPDF holds the GIL, so threads would freeze rendering for the whole OCR run | Phase 7 (`freeze_support`) |
@@ -222,6 +243,11 @@ Bugs and limitations that exist in the code right now.
 
 | Issue | Found in phase | Severity | Notes |
 |---|---|---|---|
+| The engine holds each open file wholly in memory | 7 | Low | `open_session` reads the file's bytes and opens them as a stream (since phase 2), so a 936 MB PDF costs the engine ~1.2 GB. The renderer stays bounded. Opening from the path instead would need care with saving over the open file on Windows |
+| The installer has not been run yet | 7 | Medium until checked | Built and its scripts written (`build/installer.nsh`), but installing, the `.pdf` association, double-click/Open with into one window, the jump list, the desktop-shortcut check box and uninstalling have not been exercised; the plan wants a clean Windows 11 VM |
+| The installer is unsigned | 7 | Low, by design | SmartScreen warns ("More info → Run anyway"); noted in README and the user guide |
+| The tab's close button is hidden from screen readers | 7 | Low, by design | A tab list may only contain tabs; keyboards and screen readers close tabs with Ctrl+W. The button stays for the mouse |
+| Moving the window between two real monitors was not tried | 7 | Low | Only one display here; pixel-ratio changes were checked by emulation |
 | Printing to a real printer was not checked | 6 | Low, accepted exception | Accepted by the user on 2026-11-14. No physical printer is installed on the development machine. Printing a page range to "Microsoft Print to PDF" through the Print dialog worked (exactly pages 2–3; temp file deleted). Duplex and the colour choice were not seen on paper |
 | Word → PDF through LibreOffice was not run | 6 | Low | LibreOffice is not installed here; the detection logic is unit-tested with fakes, the conversion command (`soffice --headless --convert-to pdf` with its own profile) has not run. Word (COM) conversion and its cancellation are tested for real |
 | Printed pages are pictures | 6 | Low, by design of SumatraPDF | Printing to a PDF printer gives pages without text. Paper output is unaffected |
@@ -244,9 +270,8 @@ Bugs and limitations that exist in the code right now.
 | One unexplained clean exit of the app in development | 1 | Unconfirmed | On the first of five launches the app exited with code 0 a few seconds after starting, with nothing in the log. The only code paths that quit are a closed window, the failure dialog's Quit button and a failed single-instance lock, so the window was most likely closed by hand. Not reproduced in four later runs covering reloads, hot updates and engine restarts. Watch for it |
 | Editing a store module while the app runs can leave the status indicator stale | 1 | Low, development only | Hot reload swaps `state/engine.ts` for a fresh store while the old monitor keeps the subscription. Press F5 in the app |
 | "No flash on start" was checked by state, not by eye | 1 | Low | Confirmed: the saved theme is applied before the window is created, the window's background colour equals the page's, and with the OS in dark mode the app restarted in its saved light theme. Not confirmed frame by frame |
-| App icons are the electron-vite template's | 1 | Low | Replaced in phase 7 |
 | pytest prints a Starlette deprecation warning about `httpx` | 1 | Low | "Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead." Tests pass. Revisit when Starlette drops support |
-| Renderer bundle is 1.1 MB (958 kB after phase 1) | 1 | Low | Mostly the `radix-ui` umbrella package. Irrelevant for a local app; look at it in phase 7's performance pass |
+| Renderer bundle is 1.5 MB (958 kB after phase 1) | 1 | Low | Mostly the `radix-ui` umbrella package and lucide icons. Looked at in phase 7: it loads from disk in well under a second and the window shows before the engine is ready anyway; not worth splitting |
 | If the engine (not the app) crashes, changes newer than the last recovery copy are lost | 3 | Low, by design | Copies are written 2 minutes after a change, on window reload, on engine shutdown and when the app dies — but a killed engine cannot write one. The tab comes back from the last copy (or the file) with a toast saying so |
 | Changing an annotation rebuilds that page's text layer | 3 | Cosmetic | Text, images and annotations share the page revision. The text does not change; it is fetched again (a few ms) |
 | The annotation toolbar and comment pop-up live inside the page | 3 | Low | They are clipped by the page's edges (and by the view when the page is wider than the window). Placement keeps them on the page where it can |
@@ -271,8 +296,10 @@ Work or ideas deferred to a later phase, and questions waiting for the user.
 | Creating form fields, Bates numbering | later | Out of scope in phase 5's plan |
 | Rich text inside text boxes | later | Text boxes take one style per box (font, size, colour, bold, italic, alignment). Mixed styles inside one box would need editing `RC` spans |
 | Tiled rendering for very high zoom | later | Only if the softness at 800 % on large pages (Known issues) bothers anyone |
-| Exclude PyMuPDF 2.1's unused dependencies from the frozen engine and re-measure size | 7 | Noted in the phase 7 plan |
-| Show engine and PyMuPDF versions in the About dialog | 7 | The dialog currently shows app, Electron, Chromium and Node versions; the status-bar tooltip already shows the engine's |
+| Exclude PyMuPDF 2.1's unused dependencies from the frozen engine and re-measure size | 7 | **Done** in phase 7 (188 MB frozen engine) |
+| Show engine and PyMuPDF versions in the About dialog | 7 | **Done** in phase 7 |
+| Open large files without holding them in memory | later | See Known issues; only matters for files of hundreds of MB |
+| Auto-update, code signing, Microsoft Store | later | Out of phase 7's scope |
 
 ## Phase handoff notes
 
@@ -494,3 +521,13 @@ One note per completed phase, added by the session that completes it. Use this t
 - The smoke test of a frozen engine must run a job that uses a child process (OCR or Compress): that is where a missing `freeze_support` shows.
 - New engine work that replaces objects of the open document should go through `swap.apply_objects` (never `update_object` on existing objects: it is not journalled). New long operations: register a `JobType` in `processing_api.all_job_types()` and follow the rules in `jobs.py`'s docstring.
 - Save now writes object streams (`save.SAVE_OPTIONS`); files saved since phase 6 are smaller than before for the same content.
+
+### Phase 7 — Packaging and release (completed 2026-11-14, with accepted exceptions)
+
+**Built:** Frozen engine (PyInstaller one-folder, windowed, rotating `engine.log`, `freeze_support`, smoke test `pnpm smoke:engine`); NSIS installer (per-user or all-users, Start menu shortcut, desktop shortcut check box, `.pdf` association and Default Apps entry, uninstaller asks before deleting user data); app identity (PDFnix / `com.pdfnix.app`, application and PDF icons, About dialog with versions and third-party licence notices); recent files for the jump list; Settings dialog; Help → Keyboard Shortcuts; accessibility pass (axe-core); Playwright end-to-end suite (`dev`, `packaged`, `perf` projects); `README.md` and `docs/user-guide.md`. After the user ran the app, the main window was given the application icon explicitly (it showed Electron's logo when unpackaged).
+
+**Key files:** `engine/pdfengine.spec`, `engine/engine_entry.py`, `engine/pdfengine/logs.py`, `engine/smoke_frozen.py`, `electron-builder.yml`, `build/installer.nsh`, `scripts/{make_icons,collect_licenses}.py`, `src/renderer/src/dialogs/{About,Shortcuts}Dialog.tsx`, `src/main/settings-rules.ts`, `tests/e2e/`, `tests/perf/`, `playwright.config.ts`.
+
+**Verification results** (2026-11-14): lint, type-check, app tests 308, engine tests 397, frozen-engine smoke 12/12, e2e 21 (`out/`) + 6 @smoke (packaged), perf 1 (1,000 pages / 936 MB: opens in 0.6 s). Installer 171.6 MB, installed 529.5 MB. After the icon change `pnpm typecheck` and `electron-vite build` pass (the icon is emitted to `out/main/chunks/`); the full suite was not re-run, and the icon was not looked at in a running window by this session.
+
+**Accepted exceptions** (the user declared the phase complete on 2026-11-14; this session did not run these): clean Windows 11 VM install and feature run-through; `.pdf` as default handler with several files double-clicked opening as tabs in one window; uninstall removing the program files. Also still unchecked: printing on a real printer, LibreOffice Word conversion, a screen-reader session, a real multi-monitor move, and no code-signing certificate (SmartScreen warns).

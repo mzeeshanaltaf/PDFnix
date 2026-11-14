@@ -16,12 +16,14 @@ The child exits by itself if the engine disappears (the same watchdog the
 engine uses for the app). It writes nothing to stdout: the engine's stdout
 carries the ``ENGINE_READY`` line for the app.
 
-A frozen engine (phase 7) must call ``multiprocessing.freeze_support()``
-first thing in ``__main__``.
+The frozen engine calls ``multiprocessing.freeze_support()`` first thing
+(``engine_entry.py``, ``__main__.main``); target modules are listed as hidden
+imports in ``pdfengine.spec``, since they are only imported by name here.
 """
 
 import contextlib
 import importlib
+import logging
 import multiprocessing
 import os
 import queue
@@ -35,6 +37,8 @@ from .jobs import JobCancelled, JobContext
 
 Report = Callable[..., None]
 
+logger = logging.getLogger("pdfengine")
+
 #: How long to wait for a terminated child to go.
 _JOIN_SECONDS = 5.0
 
@@ -45,6 +49,10 @@ class WorkerFailedError(EngineError):
 
 
 def _child_main(target: str, payload: Any, messages: Any, parent_pid: int) -> None:
+    # A child of the windowed (frozen) engine has no stdio at all.
+    from .logs import ensure_streams
+
+    ensure_streams()
     # Keep stdout clean: it belongs to the engine's start-up protocol.
     with contextlib.suppress(Exception):
         sys.stdout.flush()
@@ -66,8 +74,11 @@ def _child_main(target: str, payload: Any, messages: Any, parent_pid: int) -> No
     except EngineError as exc:
         messages.put(("error", exc.code, exc.message, exc.status, exc.details))
     except BaseException as exc:  # noqa: BLE001 - everything must reach the parent
-        traceback.print_exc()
-        messages.put(("error", "internal_error", f"The job failed: {exc}", 500, {}))
+        # The engine logs the traceback: a child of the frozen engine has
+        # nowhere to print it.
+        messages.put(
+            ("error", "internal_error", f"The job failed: {exc}", 500, {}, traceback.format_exc())
+        )
 
 
 def run_in_process(
@@ -116,7 +127,9 @@ def run_in_process(
             elif kind == "done":
                 return message[1]
             elif kind == "error":
-                _, code, text, status, details = message
+                _, code, text, status, details, *trace = message
+                if trace:
+                    logger.error("Job child %s failed:\n%s", target, trace[0])
                 raise EngineError(code, text, status).with_details(**details)
     finally:
         if process.is_alive():

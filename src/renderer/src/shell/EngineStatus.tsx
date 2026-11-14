@@ -47,7 +47,7 @@ export function EngineStatus(): React.JSX.Element {
           <span className={cn('size-2 rounded-full', DOT[link])} aria-hidden />
           <span>{LABEL[link]}</span>
           {health && (
-            <span className="text-muted-foreground/80">
+            <span className="text-muted-foreground">
               v{health.engineVersion} · PyMuPDF {health.pymupdfVersion}
             </span>
           )}

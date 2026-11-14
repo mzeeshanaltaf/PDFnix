@@ -20,6 +20,7 @@ import { pageAnnotations, pageBlocks, pageTexts } from '../viewer/pageText'
 import { forgetViewPosition } from '../viewer/viewPositions'
 import { askPassword, closePasswordPrompt, useDialogs } from './dialogs'
 import { useEngine } from './engine'
+import { useSettings } from './settings'
 import { findTabByPath, getTab, selectActiveTab, useTabs, type SearchState } from './tabs'
 import { useTools } from './tools'
 
@@ -541,10 +542,11 @@ async function reopenAll(): Promise<void> {
     toast.error('Some documents could not be reopened', { description: failed.join(', ') })
   }
   if (recovered.length > 0) {
+    const minutes = useSettings.getState().recoveryMinutes
     toast.warning('The PDF engine was restarted', {
       description:
         `Unsaved changes to ${recovered.join(', ')} were restored from the last recovery copy. ` +
-        'Changes from the last two minutes may be missing.'
+        `Changes from the last ${minutes === 1 ? 'minute' : `${minutes} minutes`} may be missing.`
     })
   }
   if (lost.length > 0) {

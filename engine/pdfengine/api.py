@@ -28,7 +28,7 @@ from .annotations import (
     update_annotation,
 )
 from .edit import decode_image, delete_object, insert_image, page_blocks, replace_text
-from .errors import BadRequestError
+from .errors import BadRequestError, NotFoundError
 from .fonts import list_fonts
 from .info import document_info, document_outline
 from .pages import rotate_pages
@@ -167,6 +167,11 @@ class RestoreRequest(_Body):
     password: str | None = None
 
 
+class RecoverySettingsRequest(_Body):
+    #: Ten seconds to one hour.
+    delay_seconds: float = Field(ge=10, le=3600)
+
+
 def _register(sessions: SessionRegistry, session: Session) -> dict[str, Any]:
     """Adds a freshly opened session and returns the open response."""
     try:
@@ -185,6 +190,27 @@ def build_router(sessions: SessionRegistry, recovery: RecoveryStore) -> APIRoute
     @router.post("/open")
     def open_document(body: OpenRequest) -> dict[str, Any]:
         return _register(sessions, open_session(body.path, body.password))
+
+    @router.get("")
+    def list_documents() -> dict[str, Any]:
+        """The open sessions (for diagnostics and the end-to-end tests)."""
+        documents = []
+        for doc_id in sessions.ids():
+            try:
+                session = sessions.get(doc_id)
+            except NotFoundError:
+                continue  # closed meanwhile
+            with session.lock:
+                documents.append(
+                    {
+                        "docId": session.id,
+                        "path": session.path,
+                        "fileName": os.path.basename(session.path),
+                        "pageCount": session.page_count,
+                        **session.state(),
+                    }
+                )
+        return {"documents": documents}
 
     @router.delete("")
     def close_all_documents() -> dict[str, int]:
@@ -455,6 +481,13 @@ def build_recovery_router(sessions: SessionRegistry, recovery: RecoveryStore) ->
     def list_copies() -> list[dict[str, Any]]:
         """Recovery copies left by a previous run (or page load) of the app."""
         return recovery.entries()
+
+    @router.put("/settings")
+    def recovery_settings(body: RecoverySettingsRequest) -> dict[str, float]:
+        """How long an unsaved change may go without a recovery copy (the
+        app's setting; it also passes it at start-up)."""
+        recovery.delay = body.delay_seconds
+        return {"delaySeconds": recovery.delay}
 
     @router.post("/{recovery_id}/open")
     def restore(recovery_id: str, body: RestoreRequest) -> dict[str, Any]:

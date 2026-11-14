@@ -9,18 +9,24 @@ Environment:
   documents with unsaved changes; without it there are none.
 - ``PDFENGINE_RECOVERY_DELAY`` (optional): seconds an unsaved change may go
   without a recovery copy (default 120). For testing.
+- ``PDFENGINE_LOG_DIR`` (optional): folder for a rotating log file.
 
 Stdout carries exactly one line, ``ENGINE_READY port=<n>``, printed once the
-server is accepting connections. Logs go to stderr.
+server is accepting connections. Logs go to stderr and the log file.
+
+The installed engine is this module frozen by PyInstaller (``pdfengine.spec``,
+entry script ``engine_entry.py``).
 """
 
 import contextlib
+import multiprocessing
 import os
 import socket
 import sys
 
 import uvicorn
 
+from . import logs
 from .recovery import RECOVERY_DELAY
 from .server import create_app
 from .watchdog import exit_now, start_parent_watchdog
@@ -42,6 +48,12 @@ class _Server(uvicorn.Server):
 
 
 def main() -> int:
+    # In a frozen engine, a job's child process (worker.py) starts this same
+    # executable; freeze_support runs the child's work there and exits instead
+    # of starting a second engine. It does nothing when not frozen.
+    multiprocessing.freeze_support()
+    logs.configure()
+
     token = os.environ.get("PDFENGINE_TOKEN", "")
     if not token:
         print("pdfengine: PDFENGINE_TOKEN is not set", file=sys.stderr, flush=True)
@@ -69,7 +81,8 @@ def main() -> int:
     sock.bind((HOST, 0))
     port = sock.getsockname()[1]
 
-    config = uvicorn.Config(app, log_level="warning", access_log=False)
+    # log_config=None: uvicorn's records go through the handlers set up above.
+    config = uvicorn.Config(app, log_level="warning", access_log=False, log_config=None)
     _Server(config, port).run(sockets=[sock])
     return 0
 

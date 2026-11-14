@@ -17,6 +17,11 @@ export default defineConfig({
     }
   },
   renderer: {
+    build: {
+      // Small assets would be inlined as data: URIs, which the CSP does not
+      // allow for images; keep every asset a file.
+      assetsInlineLimit: 0
+    },
     resolve: {
       alias: {
         '@': resolve('src/renderer/src')

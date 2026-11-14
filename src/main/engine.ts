@@ -5,6 +5,7 @@ import { EventEmitter } from 'events'
 import { join } from 'path'
 import type { EngineConnection, EngineStatus } from '../shared/api'
 import { LineSplitter, parseReadyLine, RestartPolicy, TailBuffer } from './engine-protocol'
+import { getRecoveryDelaySeconds } from './settings'
 
 /** `uv run` may have to create or sync the virtual environment first. */
 const READY_TIMEOUT_MS = app.isPackaged ? 30_000 : 120_000
@@ -31,7 +32,8 @@ interface Launch {
 
 function resolveLaunch(): Launch {
   if (app.isPackaged) {
-    // Wired for phase 7, when the engine is frozen into an executable.
+    // The engine frozen by PyInstaller (`pnpm build:engine`), shipped by
+    // electron-builder as an extra resource.
     const dir = join(process.resourcesPath, 'engine')
     return { command: join(dir, 'pdfengine.exe'), args: [], cwd: dir }
   }
@@ -160,6 +162,11 @@ export class EngineManager extends EventEmitter<EngineManagerEvents> {
           // OCR language data: English comes with the app, others are downloaded.
           PDFENGINE_TESSDATA_BUNDLED: bundledTessdata(),
           PDFENGINE_TESSDATA_DIR: join(app.getPath('userData'), 'tessdata'),
+          // Rotating engine.log; the installed engine has no console to print to.
+          PDFENGINE_LOG_DIR: join(app.getPath('userData'), 'logs'),
+          // The user's recovery interval (Settings); a value set by hand wins.
+          PDFENGINE_RECOVERY_DELAY:
+            process.env['PDFENGINE_RECOVERY_DELAY'] ?? String(getRecoveryDelaySeconds()),
           PYTHONUNBUFFERED: '1',
           PYTHONIOENCODING: 'utf-8'
         },

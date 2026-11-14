@@ -33,6 +33,8 @@ interface DialogsState {
   /** PDF to Word, images or text for a tab. */
   convert: { tabId: string; kind: ConvertKind } | null
   imagesToPdfOpen: boolean
+  aboutOpen: boolean
+  shortcutsOpen: boolean
 }
 
 export type ConvertKind = 'word' | 'images' | 'text'
@@ -54,7 +56,9 @@ export const useDialogs = create<DialogsState>(() => ({
   printTabId: null,
   ocrLanguagesOpen: false,
   convert: null,
-  imagesToPdfOpen: false
+  imagesToPdfOpen: false,
+  aboutOpen: false,
+  shortcutsOpen: false
 }))
 
 export type ToolDialog =
@@ -158,6 +162,14 @@ export function answerConfirmation(yes: boolean): void {
 
 export function showPreferences(open: boolean): void {
   useDialogs.setState({ preferencesOpen: open })
+}
+
+export function showAbout(open: boolean): void {
+  useDialogs.setState({ aboutOpen: open })
+}
+
+export function showShortcuts(open: boolean): void {
+  useDialogs.setState({ shortcutsOpen: open })
 }
 
 let answer: ((password: string | null) => void) | null = null

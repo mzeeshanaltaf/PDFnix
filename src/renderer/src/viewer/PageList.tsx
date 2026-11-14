@@ -442,7 +442,10 @@ export function PageList({ tab }: { tab: DocumentTab }): React.JSX.Element {
     <div
       ref={scrollerRef}
       className={cn('pdf-scroller', `tool-${activeTool}`)}
-      tabIndex={-1}
+      // Reachable with Tab, so the keyboard can scroll the pages.
+      tabIndex={0}
+      role="region"
+      aria-label={`Pages of ${tab.fileName}`}
       onScroll={sync}
       data-tab-id={tab.id}
       data-zoom={zoom}

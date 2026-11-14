@@ -1,6 +1,9 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { existsSync } from 'fs'
+import { join } from 'path'
 import {
   IPC,
+  type AppInfo,
   isFileChoice,
   isLayoutMode,
   isSaveKind,
@@ -33,6 +36,17 @@ import {
   setDefaultSignature
 } from './signatures'
 import { changeTheme, currentTheme } from './theme'
+
+/**
+ * The third-party licence notices (`pnpm notices` writes them to
+ * resources/licenses; the installer ships them as resources/licenses).
+ */
+function noticesPath(): string {
+  const folder = app.isPackaged
+    ? join(process.resourcesPath, 'licenses')
+    : join(app.getAppPath(), 'resources', 'licenses')
+  return join(folder, 'THIRD-PARTY-NOTICES.txt')
+}
 
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
@@ -78,6 +92,19 @@ export function registerIpc(engine: EngineManager, onConfirmClose: () => void): 
   ipcMain.handle(IPC.engineGetConnection, () => engine.getConnection())
   ipcMain.handle(IPC.engineGetStatus, () => engine.getStatus())
   ipcMain.handle(IPC.appGetVersion, () => app.getVersion())
+  ipcMain.handle(IPC.appGetInfo, (): AppInfo => ({
+    name: app.getName(),
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    packaged: app.isPackaged
+  }))
+  ipcMain.handle(IPC.appOpenNotices, async () => {
+    const path = noticesPath()
+    if (!existsSync(path)) return false
+    return (await shell.openPath(path)) === ''
+  })
   ipcMain.on(IPC.appConfirmClose, () => onConfirmClose())
   ipcMain.handle(IPC.themeGet, () => currentTheme())
   ipcMain.handle(IPC.themeSet, (_event, theme: unknown) => {

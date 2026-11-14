@@ -6,6 +6,7 @@ Conventions (see docs/plan/phase-1-foundation.md):
 - errors are ``{"error": {"code": ..., "message": ...}}``.
 """
 
+import os
 import secrets
 import sys
 from collections.abc import AsyncIterator
@@ -95,6 +96,8 @@ def create_app(
             "mupdfVersion": pymupdf.mupdf_version,
             "pythonVersion": sys.version.split()[0],
             "openDocuments": len(app.state.sessions),
+            # For diagnostics (and the tests that stop the engine on purpose).
+            "pid": os.getpid(),
         }
 
     v1.include_router(build_router(sessions, recovery))

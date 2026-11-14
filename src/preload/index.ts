@@ -26,6 +26,8 @@ const api: Api = {
   },
   app: {
     getVersion: () => ipcRenderer.invoke(IPC.appGetVersion),
+    getInfo: () => ipcRenderer.invoke(IPC.appGetInfo),
+    openNotices: () => ipcRenderer.invoke(IPC.appOpenNotices),
     onCloseRequest: (listener) => subscribe<void>(IPC.appCloseRequest, () => listener()),
     confirmClose: () => ipcRenderer.send(IPC.appConfirmClose)
   },

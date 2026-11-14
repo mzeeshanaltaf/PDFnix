@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FileDown } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AboutDialog } from '@/dialogs/AboutDialog'
 import { CompressDialog } from '@/dialogs/CompressDialog'
 import { ConfirmDialog } from '@/dialogs/ConfirmDialog'
 import { ConvertDialog } from '@/dialogs/ConvertDialog'
@@ -17,6 +18,7 @@ import { OrganiseDialog } from '@/dialogs/OrganiseDialog'
 import { PageRangeDialog } from '@/dialogs/PageRangeDialog'
 import { PasswordDialog } from '@/dialogs/PasswordDialog'
 import { RedactDialog } from '@/dialogs/RedactDialog'
+import { ShortcutsDialog } from '@/dialogs/ShortcutsDialog'
 import { SplitDialog } from '@/dialogs/SplitDialog'
 import { WatermarkDialog } from '@/dialogs/WatermarkDialog'
 import { FormBar } from '@/shell/FormBar'
@@ -153,6 +155,8 @@ function App(): React.JSX.Element {
       <JobProgressDialog />
       <PageRangeDialog />
       <ConfirmDialog />
+      <ShortcutsDialog />
+      <AboutDialog />
       {/* Last, so the password prompt shows above the other dialogs. */}
       <PasswordDialog />
       <PropertiesDialog />

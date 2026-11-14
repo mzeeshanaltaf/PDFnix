@@ -54,6 +54,17 @@ export interface RecentFile {
   folder: string
 }
 
+/** What the About dialog shows about the app itself. */
+export interface AppInfo {
+  name: string
+  version: string
+  electron: string
+  chrome: string
+  node: string
+  /** Running from an installation, not from the development build. */
+  packaged: boolean
+}
+
 /**
  * Commands the application menu sends to the renderer. The renderer runs the
  * same commands from the toolbar and from keyboard shortcuts.
@@ -125,7 +136,9 @@ export const MENU_COMMANDS = [
   'convert.toImages',
   'convert.toText',
   'convert.imagesToPdf',
-  'convert.wordToPdf'
+  'convert.wordToPdf',
+  'help.shortcuts',
+  'help.about'
 ] as const
 
 export type MenuCommand = (typeof MENU_COMMANDS)[number]
@@ -166,7 +179,26 @@ export interface UserSettings {
   authorName: string
   /** `#rrggbb`: the colour new highlights start with. */
   highlightColor: string
+  /** How a newly opened document is zoomed. */
+  defaultZoom: DefaultZoom
+  /** How a newly opened document's pages are laid out. */
+  defaultLayout: LayoutMode
+  /** Tesseract language codes the OCR dialog starts with (1–3). */
+  ocrLanguages: string[]
+  /** Minutes an unsaved change may go without a recovery copy. */
+  recoveryMinutes: number
 }
+
+export type DefaultZoom = 'fit-width' | 'fit-page' | 'actual-size'
+
+export const DEFAULT_ZOOMS: readonly DefaultZoom[] = ['fit-width', 'fit-page', 'actual-size']
+
+export function isDefaultZoom(value: unknown): value is DefaultZoom {
+  return typeof value === 'string' && (DEFAULT_ZOOMS as readonly string[]).includes(value)
+}
+
+export const RECOVERY_MINUTES = { min: 1, max: 30, default: 2 } as const
+export const MAX_OCR_LANGUAGES = 3
 
 export function isHexColor(value: unknown): value is string {
   return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
@@ -261,6 +293,13 @@ export interface Api {
   }
   app: {
     getVersion(): Promise<string>
+    /** Versions for the About dialog. */
+    getInfo(): Promise<AppInfo>
+    /**
+     * Opens the third-party licence notices in the default text editor.
+     * Resolves false if the file is missing.
+     */
+    openNotices(): Promise<boolean>
     /**
      * The window is about to close or the app to quit. The renderer deals
      * with unsaved changes and then calls `confirmClose`; if it never does,
@@ -335,6 +374,8 @@ export const IPC = {
   engineGetStatus: 'engine:getStatus',
   engineStatus: 'engine:status',
   appGetVersion: 'app:getVersion',
+  appGetInfo: 'app:getInfo',
+  appOpenNotices: 'app:openNotices',
   appCloseRequest: 'app:closeRequest',
   appConfirmClose: 'app:confirmClose',
   settingsGet: 'settings:get',

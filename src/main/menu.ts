@@ -1,4 +1,4 @@
-import { app, dialog, Menu, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import { app, Menu, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 import {
   EMPTY_MENU_STATE,
   IPC,
@@ -72,24 +72,6 @@ function recentItems(): MenuItemConstructorOptions[] {
   ]
 }
 
-function showAbout(window: BrowserWindow | null): void {
-  const options = {
-    type: 'info' as const,
-    title: `About ${app.getName()}`,
-    message: app.getName(),
-    detail: [
-      `Version ${app.getVersion()}`,
-      '',
-      `Electron ${process.versions.electron}`,
-      `Chromium ${process.versions.chrome}`,
-      `Node.js ${process.versions.node}`
-    ].join('\n'),
-    buttons: ['OK']
-  }
-  if (window) void dialog.showMessageBox(window, options)
-  else void dialog.showMessageBox(options)
-}
-
 /**
  * Builds the application menu. Entries for features that later phases
  * implement are present but disabled.
@@ -160,7 +142,7 @@ export function buildMenu(): void {
         command('Print…', 'file.print', 'CmdOrCtrl+P'),
         { type: 'separator' },
         command('Properties…', 'file.properties', 'CmdOrCtrl+D'),
-        command('Preferences…', 'file.preferences', 'CmdOrCtrl+,', { needsDocument: false }),
+        command('Se&ttings…', 'file.preferences', 'CmdOrCtrl+,', { needsDocument: false }),
         { type: 'separator' },
         command('Close Tab', 'file.closeTab', 'CmdOrCtrl+W'),
         { label: 'Exit', role: 'quit' }
@@ -262,7 +244,11 @@ export function buildMenu(): void {
     },
     {
       label: '&Help',
-      submenu: [{ label: `About ${app.getName()}`, click: () => showAbout(getWindow()) }]
+      submenu: [
+        command('&Keyboard Shortcuts', 'help.shortcuts', 'CmdOrCtrl+/', { needsDocument: false }),
+        { type: 'separator' },
+        command(`&About ${app.getName()}`, 'help.about', undefined, { needsDocument: false })
+      ]
     }
   ]
 

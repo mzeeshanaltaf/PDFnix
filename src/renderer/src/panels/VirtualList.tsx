@@ -102,6 +102,7 @@ export function VirtualList<T>({
     <div
       ref={scrollerRef}
       className={cn('min-h-0 flex-1 overflow-x-hidden overflow-y-auto', className)}
+      role="region"
       aria-label={ariaLabel}
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
     >

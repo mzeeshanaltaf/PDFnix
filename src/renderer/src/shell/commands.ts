@@ -11,9 +11,11 @@ import {
   showConvert,
   showImagesToPdf,
   showMerge,
+  showAbout,
   showOcrLanguages,
   showPreferences,
   showProperties,
+  showShortcuts,
   showToolDialog
 } from '@/state/dialogs'
 import { wordToPdf } from '@/state/processing'
@@ -129,6 +131,14 @@ export function runCommand(command: CommandId): void {
   }
   if (command === 'file.preferences') {
     showPreferences(true)
+    return
+  }
+  if (command === 'help.about') {
+    showAbout(true)
+    return
+  }
+  if (command === 'help.shortcuts') {
+    showShortcuts(true)
     return
   }
   if (command === 'tabs.next' || command === 'tabs.previous') {

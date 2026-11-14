@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, shell } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import { existsSync, statSync } from 'fs'
 import {
   EXTERNAL_EXTENSIONS,
@@ -237,6 +237,10 @@ export function addRecent(path: string): void {
   const updated = addToRecent(getRecentFiles(), path).filter((entry) => existsSync(entry))
   setRecentFiles(updated)
   publishRecent(updated)
+  // Windows' own list: the taskbar jump list and Start's recent files. It
+  // only lists files of a type the app is registered for (the installer
+  // associates .pdf), so it shows nothing in development.
+  if (process.platform === 'win32') app.addRecentDocument(path)
 }
 
 export function removeRecent(path: string): void {
@@ -249,6 +253,7 @@ export function removeRecent(path: string): void {
 export function clearRecent(): void {
   setRecentFiles([])
   publishRecent([])
+  if (process.platform === 'win32') app.clearRecentDocuments()
 }
 
 export function onRecentChanged(listener: RecentListener): void {

@@ -1,30 +1,73 @@
-# Minimal configuration for phase 1. Engine bundling, installer options and
-# file associations are completed in phase 7.
+# Windows installer for PDFnix: `pnpm dist` (checks, frozen engine, installer)
+# or `pnpm dist:dir` (unpacked app only, for quick checks).
 appId: com.pdfnix.app
 productName: PDFnix
+copyright: Copyright © 2026 PDFnix
 directories:
   buildResources: build
+  output: release
+# Only the built app code; production node_modules are added by electron-builder.
+# The renderer's packages are bundled into out/renderer by Vite, so the large
+# UI ones are left out (main needs only pdf-to-printer and electron-store's ajv).
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!engine/*'
-  - '!docs/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!vitest.config.{js,ts,mjs,mts,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,components.json,CLAUDE.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - out/**
+  - package.json
+  - '!**/node_modules/lucide-react/**'
+  - '!**/node_modules/@radix-ui/**'
+  - '!**/node_modules/radix-ui/**'
+  - '!**/node_modules/@floating-ui/**'
+  - '!**/node_modules/react-dom/**'
+  - '!**/node_modules/sonner/**'
+asar: true
+# The UI is English only; Chromium's other locales add ~47 MB.
+electronLanguages:
+  - en-US
 asarUnpack:
-  - resources/**
+  # Printing runs the SumatraPDF that pdf-to-printer bundles, which cannot run
+  # from inside the asar archive; pdf-to-printer rewrites its path to
+  # app.asar.unpacked itself.
+  - '**/node_modules/pdf-to-printer/dist/**'
+extraResources:
+  # The engine frozen by PyInstaller (`pnpm build:engine`).
+  - from: dist-engine/pdfengine
+    to: engine
+  # English OCR data (tessdata_fast) and its licence; main passes this folder
+  # to the engine as PDFENGINE_TESSDATA_BUNDLED.
+  - from: resources/tessdata
+    to: tessdata
+  # Licence notices shown by Help > About > Licences, also readable on disk.
+  - from: resources/licenses
+    to: licenses
+fileAssociations:
+  - ext: pdf
+    name: PDFnix.Document
+    description: PDF Document
+    icon: pdf-file
+    role: Viewer
 win:
   executableName: PDFnix
+  icon: build/icon.ico
   target:
     - target: nsis
       arch:
         - x64
+  # No purchased certificate (phase 7 scope); Windows SmartScreen warns.
+  signAndEditExecutable: true
 nsis:
   artifactName: ${productName}-${version}-setup.${ext}
+  oneClick: false
+  # Per-user install by default; the installer offers "all users" (elevates).
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  # The desktop shortcut is a finish-page check box (build/installer.nsh).
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
-  createDesktopShortcut: always
+  # User data stays unless the user says otherwise when uninstalling.
+  deleteAppDataOnUninstall: false
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  include: build/installer.nsh
 npmRebuild: false

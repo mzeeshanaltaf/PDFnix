@@ -17,6 +17,15 @@ engine/build/
 engine/dist/
 *.egg-info/
 *.spec
+!engine/pdfengine.spec
+
+# Frozen engine (pnpm build:engine) and PyInstaller's work folder
+dist-engine/
+build-engine/
+
+# End-to-end test output
+test-results/
+playwright-report/
 
 # Logs and local files
 *.log

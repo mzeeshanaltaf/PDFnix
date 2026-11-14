@@ -898,6 +898,10 @@ export const engine = {
   discardRecovery: (recoveryId: string): Promise<{ discarded: boolean }> =>
     request('DELETE', `/recovery/${encodeURIComponent(recoveryId)}`),
 
+  /** How long an unsaved change may go without a recovery copy (10 s – 1 h). */
+  setRecoveryDelay: (seconds: number): Promise<{ delaySeconds: number }> =>
+    request('PUT', '/recovery/settings', { body: { delaySeconds: seconds } }),
+
   // --- Pages ---------------------------------------------------------------
 
   /** `order` lists every page index once, in the new order. */
