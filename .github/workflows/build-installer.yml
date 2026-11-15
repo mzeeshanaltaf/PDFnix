@@ -1,0 +1,77 @@
+name: Build installer
+
+# Builds the Windows installer from source on a GitHub-hosted runner and keeps
+# it as a workflow artifact. Run it by hand (Actions -> Build installer -> Run
+# workflow) or by pushing a version tag such as v0.1.1.
+#
+# The installer is NOT signed here. Signing (SignPath) is added as a later step
+# once the project has been accepted.
+#
+# This is the build part of `pnpm dist`. Lint and the test suites are left out:
+# the engine tests include a real Microsoft Word conversion that a hosted
+# runner cannot run. Run `pnpm dist` locally to get the full check.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.8.3'
+
+      - name: Install app dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install engine dependencies
+        run: uv sync --directory engine --frozen --group build
+
+      - name: Freeze the engine
+        run: pnpm build:engine
+
+      - name: Smoke-test the frozen engine
+        run: pnpm smoke:engine
+
+      - name: Generate third-party notices
+        run: pnpm notices
+
+      - name: Build the app
+        run: pnpm exec electron-vite build
+
+      - name: Build the installer
+        run: pnpm exec electron-builder --win
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          Get-FileHash release/PDFnix-*-setup.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
+            Tee-Object -FilePath release/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PDFnix-installer-unsigned
+          path: |
+            release/PDFnix-*-setup.exe
+            release/SHA256SUMS.txt
+          if-no-files-found: error

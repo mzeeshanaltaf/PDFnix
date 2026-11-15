@@ -92,6 +92,22 @@ docs/         User guide; plan/ holds the phase plans and STATUS.md
 
 The engine listens only on `127.0.0.1`, on a random port, accepts requests only with a token generated for each launch, and exits when the app does. Its log is `%APPDATA%\PDFnix\logs\engine.log`.
 
+## Team roles
+
+PDFnix is a solo project. [@mzeeshanaltaf](https://github.com/mzeeshanaltaf) is its author (committer), reviewer and approver.
+
+## Privacy
+
+PDFnix works on your files on your own computer and sends no information about you or your documents anywhere. It has no telemetry, no accounts and no automatic update check.
+
+The only time it uses the network is when you ask it to download an OCR language (File → Settings → OCR languages): the engine then fetches that language's `.traineddata` file from `raw.githubusercontent.com` (the `tesseract-ocr/tessdata_fast` repository). The request names only the language file and, like any download, reveals your IP address to GitHub; nothing from your documents is sent. OCR itself, and every other feature, runs offline. The bundled English data needs no download.
+
+## What the installer changes
+
+The Windows installer adds the program files, a Start menu shortcut and, if you tick the box on its last page, a desktop shortcut. It also registers PDFnix as an application that can open `.pdf` files: it appears under "Open with" and in Settings → Apps → Default apps. **It does not make PDFnix your default PDF viewer**; Windows keeps your current choice until you change it yourself. Uninstalling removes the program, the shortcuts and these registrations, and asks before deleting your settings, signatures, recovery copies and downloaded OCR languages.
+
 ## Licence
 
-PDFnix uses PyMuPDF and MuPDF, which are licensed under the GNU AGPL v3 (or commercially by Artifex), and SumatraPDF (GPL v3) for printing. This build is intended for personal and internal use; distributing it to others would need those terms revisited first. All third-party notices are in `resources/licenses/THIRD-PARTY-NOTICES.txt` (generated) and in the app under Help → About.
+PDFnix is free software, licensed under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). You may use, study, change and share it under those terms; if you run a modified version as a network service, or distribute it, you must offer its source code under the same licence.
+
+It builds on PyMuPDF and MuPDF (GNU AGPL v3, or commercially from Artifex) and uses SumatraPDF (GPL v3) for printing. The corresponding source of each release is the tagged commit in this repository. All third-party notices are in `resources/licenses/THIRD-PARTY-NOTICES.txt` (generated) and in the app under Help → About.
