@@ -254,6 +254,35 @@
   }
 
   /*
+   * Links (web addresses and pages of the document), between the text layer
+   * and the annotation layer. Only the link areas take the pointer, and only
+   * while the select tool is active (the layer is not rendered otherwise).
+   */
+  .pdf-link-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .pdf-link {
+    position: absolute;
+    pointer-events: auto;
+    cursor: pointer;
+    border-radius: 2px;
+    outline: none;
+  }
+
+  .pdf-link:hover {
+    background: rgb(0 96 223 / 0.08);
+  }
+
+  .pdf-link:focus-visible {
+    outline: 2px solid rgb(0 96 223 / 0.85);
+    outline-offset: 1px;
+  }
+
+  /*
    * The annotation layer, above the text layer. It is transparent to the
    * pointer except for note hit areas, the toolbar and the comment pop-up,
    * so text under highlights can still be selected. Its controls sit on

@@ -16,7 +16,7 @@ import {
 import { getViewer } from '../viewer/controller'
 import { quadBounds } from '../viewer/geometry'
 import { pageImages } from '../viewer/pageImages'
-import { pageAnnotations, pageBlocks, pageTexts } from '../viewer/pageText'
+import { pageAnnotations, pageBlocks, pageLinks, pageTexts } from '../viewer/pageText'
 import { forgetViewPosition } from '../viewer/viewPositions'
 import { askPassword, closePasswordPrompt, useDialogs } from './dialogs'
 import { useEngine } from './engine'
@@ -283,6 +283,7 @@ function forgetDocument(tabId: string, docId: string): void {
   }
   pageImages.dropDocument(docId)
   pageTexts.dropDocument(docId)
+  pageLinks.dropDocument(docId)
   pageAnnotations.dropDocument(docId)
   pageBlocks.dropDocument(docId)
   const editing = useTools.getState().editing

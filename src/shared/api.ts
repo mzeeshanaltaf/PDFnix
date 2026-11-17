@@ -301,6 +301,12 @@ export interface Api {
      */
     openNotices(): Promise<boolean>
     /**
+     * Opens a link from a PDF in the default browser or mail program. Only
+     * the addresses `externalLinkTarget` (shared/links.ts) accepts; resolves
+     * false for anything else. Ask the user first: this does not.
+     */
+    openLink(url: string): Promise<boolean>
+    /**
      * The window is about to close or the app to quit. The renderer deals
      * with unsaved changes and then calls `confirmClose`; if it never does,
      * nothing closes (the user cancelled).
@@ -376,6 +382,7 @@ export const IPC = {
   appGetVersion: 'app:getVersion',
   appGetInfo: 'app:getInfo',
   appOpenNotices: 'app:openNotices',
+  appOpenLink: 'app:openLink',
   appCloseRequest: 'app:closeRequest',
   appConfirmClose: 'app:confirmClose',
   settingsGet: 'settings:get',

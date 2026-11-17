@@ -11,6 +11,7 @@ import {
   type MenuState,
   type UnsavedChoice
 } from '../shared/api'
+import { externalLinkTarget } from '../shared/links'
 import type { EngineManager } from './engine'
 import {
   addRecent,
@@ -104,6 +105,18 @@ export function registerIpc(engine: EngineManager, onConfirmClose: () => void): 
     const path = noticesPath()
     if (!existsSync(path)) return false
     return (await shell.openPath(path)) === ''
+  })
+  // Links in a PDF: checked again here so the renderer cannot open anything
+  // but a web page or a new e-mail.
+  ipcMain.handle(IPC.appOpenLink, async (_event, url: unknown) => {
+    const target = externalLinkTarget(url)
+    if (!target) return false
+    try {
+      await shell.openExternal(target)
+      return true
+    } catch {
+      return false
+    }
   })
   ipcMain.on(IPC.appConfirmClose, () => onConfirmClose())
   ipcMain.handle(IPC.themeGet, () => currentTheme())

@@ -2,7 +2,7 @@
 
 Single source of truth for where the project stands. Read fully at the start of every session; update during and at the end of every session. The protocol is in `CLAUDE.md` at the project root.
 
-**Last updated:** 2026-11-14 — phase 7 complete (all seven phases done)
+**Last updated:** 2026-11-17 — clickable links added after release (see Deviations and decisions)
 
 ## Phases
 
@@ -22,7 +22,7 @@ Status values: Not started · In progress · Complete · Complete with accepted 
 
 - **Current phase:** none — all seven phases are complete (phase 7 declared complete by the user on 2026-11-14)
 - **Next action:** nothing is planned. If wanted: run the installer on a clean Windows 11 machine and tick off the installation checks listed under the phase 7 handoff note's accepted exceptions; check printing on a real printer; consider code signing (SmartScreen warns without it).
-- **Uncommitted work:** none once the phase 7 commit is pushed to `origin/main` (the user asked for that on 2026-11-14).
+- **Uncommitted work:** the clickable-links feature of 2026-11-17 (engine `links.py`, `GET /pages/{i}/links`, `LinkLayer.tsx`, `shared/links.ts`, `app:openLink` IPC, e2e `links.spec.ts`) is uncommitted until the user agrees to a commit.
 
 ## Current phase progress
 
@@ -102,6 +102,7 @@ Answers to the "confirm against the pinned version" notes in the plans, so they 
 
 | Question | Answer | Phase | Date |
 |---|---|---|---|
+| In which space does PyMuPDF 2.1 report `page.get_links()` `"from"` rects? | Already in the displayed (rotated) space, unlike words, which need `rotation_matrix`. Only for a freshly loaded page: a `Page` object kept across `set_rotation` still reports the old boxes (`session.page` loads per call, so the engine is fine). Covered by `tests/test_links.py` | post-7 | 2026-11-17 |
 | Does a windowed (`console=False`) PyInstaller engine still talk to main through stdout, and do its job children work? | Yes: with the pipes main passes, `ENGINE_READY` arrives (0.5 s cold start) and OCR, Compress and PDF → Word run in `spawn` children of `pdfengine.exe` (`smoke_frozen.py`, packaged e2e). Children of the windowed exe have no stdio (`sys.stderr is None`); `logs.ensure_streams` covers it | 7 | 2026-11-14 |
 | Which PyMuPDF 2.1 dependencies does the engine load? | `import pymupdf` loads none of `pymupdf4llm`, `pymupdf.layout`, `onnxruntime`, `networkx`, `psutil`, `yaml`, `tabulate`; `pdf2docx` loads `cv2`, `numpy`, `lxml`, `docx`, `fontTools` (not `fire`/`termcolor`). FastAPI loads `opentelemetry` | 7 | 2026-11-14 |
 | Playwright and Electron | `_electron.launch` works with `out/` and the packaged exe; `@axe-core/playwright` fails (it opens a new page: `Target.createTarget: Not supported`), so axe-core is evaluated in the window; Playwright pins the page's `prefers-color-scheme` (check `nativeTheme` in main instead, or `page.emulateMedia`); `app.process()` throws once the app has closed (keep the handle) | 7 | 2026-11-14 |
@@ -160,6 +161,7 @@ Anything that differs from the plan documents, or a decision the plans left open
 
 | Date | Phase | Decision or deviation | Reason | Plans updated |
 |---|---|---|---|---|
+| 2026-11-17 | Post-release | **Clickable links in PDFs** (not in any phase plan). Engine `GET /v1/docs/{id}/pages/{i}/links` (`links.py`) returns web (`uri`) and same-document (`page`) links; launch/other-file links are dropped. Renderer `LinkLayer` (z-index 1, between text and annotation layers) shows them only with the Select tool: hand cursor, web links ask in the in-app confirm dialog ("Open this link?" / "Write an e-mail?") before `window.api.app.openLink`; page links jump without asking. `shared/links.ts` `externalLinkTarget` allows only http/https/mailto (`www.` gets https) and is checked again in main before `shell.openExternal`. Links are `div role=link`, not `<a href>`, so Ctrl/middle-click cannot reach the window-open handler without the prompt | User request: links in PDFs (e.g. a résumé) did nothing on hover or click | – |
 | 2026-11-15 | Release | **PDFnix is licensed AGPL-3.0-only** (`LICENSE`, `package.json`, README), replacing the README's "personal and internal use" wording. v0.1.0 was published on GitHub (public repo, unsigned installer) on 2026-11-15, before the licence file existed. Policy text (team roles, privacy statement, what the installer changes) is in the README. `.github/workflows/build-installer.yml` builds the unsigned installer on a GitHub-hosted runner (manual or on `v*` tags; no lint or tests, because the engine tests need Microsoft Word) | Plan for free code signing through SignPath Foundation, which needs an OSI-approved licence and a verifiable CI build; MuPDF is AGPL, so AGPL is the consistent choice. Next: enable 2FA, apply at signpath.org/apply, then add the SignPath signing step and sign `pdfengine.exe`/`PDFnix.exe` inside the installer too. The "PDFnix" name is still unchecked for trademarks | – |
 | 2026-11-14 | 7 | The main window now gets its icon explicitly (`icon: build/icon.ico` through electron-vite's `?asset` import in `src/main/index.ts`). Before, an unpackaged run (`pnpm dev`, `electron .`) showed Electron's own atom logo in the title bar and taskbar; it now shows the same icon as Help → About. An installed build already carried it in the exe | Reported by the user after running the app | – |
 | 2026-11-14 | 7 | **Installed size is ~530 MB, not ~250 MB.** Electron 44's own runtime is ~370 MB on disk (its `electron.exe` alone 235 MB); the frozen engine is 188 MB (OpenCV 82 MB for pdf2docx, PyMuPDF 38, NumPy + OpenBLAS 27). Reduced by: en-US locale only (−47 MB), renderer-only npm packages left out of the asar (36 → 5 MB; Vite bundles them), PyMuPDF's unused dependencies excluded (onnxruntime, pymupdf4llm, `pymupdf/layout` 50 MB, networkx, psutil, yaml, tabulate, fire, termcolor), OpenCV's ffmpeg DLL (30 MB) and `mupdf-devel` dropped | The plan's estimate predates Electron 44 and pdf2docx; the remaining size is the two runtimes and OpenCV | – |

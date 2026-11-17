@@ -4,6 +4,7 @@ engine's Python): `python make_fixtures.py <folder>`.
 - report.pdf  12 pages, "Chapter n" headings, an outline, the word
               "aardvark" on pages 3 and 9, a known sentence on page 1
 - pages.pdf   3 pages that say "Alpha", "Bravo", "Charlie"
+- links.pdf   3 pages; page 1 links to a web site, to page 3 and to a program
 - form.pdf    a text field "Full name" and a checkbox "Agree"
 - scan.pdf    one page that is only a picture of text (for OCR)
 """
@@ -41,6 +42,41 @@ def pages(path: Path) -> None:
     doc = pymupdf.open()
     for word in ("Alpha", "Bravo", "Charlie"):
         doc.new_page(width=612, height=792).insert_text((72, 120), word, fontsize=48)
+    doc.save(path)
+
+
+def links(path: Path) -> None:
+    """Page 1 has a web link over "Visit the website", a link to page 3 over
+    "Go to page three" and a link that would launch a program (never offered)."""
+    doc = pymupdf.open()
+    for n in range(1, 4):
+        doc.new_page(width=612, height=792).insert_text((72, 90), f"Page {n}", fontsize=24)
+    page = doc[0]
+    page.insert_text((72, 160), "Visit the website", fontsize=18)
+    page.insert_text((72, 220), "Go to page three", fontsize=18)
+    page.insert_text((72, 280), "Launch a program", fontsize=18)
+    page.insert_link(
+        {
+            "kind": pymupdf.LINK_URI,
+            "from": pymupdf.Rect(70, 142, 230, 166),
+            "uri": "https://example.com/pdfnix-link",
+        }
+    )
+    page.insert_link(
+        {
+            "kind": pymupdf.LINK_GOTO,
+            "from": pymupdf.Rect(70, 202, 230, 226),
+            "page": 2,
+            "to": pymupdf.Point(0, 0),
+        }
+    )
+    page.insert_link(
+        {
+            "kind": pymupdf.LINK_URI,
+            "from": pymupdf.Rect(70, 262, 230, 286),
+            "uri": "file:///C:/Windows/System32/calc.exe",
+        }
+    )
     doc.save(path)
 
 
@@ -148,6 +184,7 @@ def main() -> None:
     for name, make in (
         ("report", report),
         ("pages", pages),
+        ("links", links),
         ("form", form),
         ("scan", scan),
         ("long-scan", long_scan),

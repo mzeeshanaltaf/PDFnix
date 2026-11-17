@@ -318,6 +318,15 @@ export interface PageText {
   lines: TextLine[]
 }
 
+/** A clickable link on a page: to a web address, or to another page of the document. */
+export type PageLink =
+  | { rect: Rect; kind: 'uri'; uri: string; page: null }
+  | { rect: Rect; kind: 'page'; uri: null; page: number }
+
+export interface PageLinks {
+  links: PageLink[]
+}
+
 export interface OutlineEntry {
   title: string
   /** 0-based page index, or null when the entry points outside the document. */
@@ -792,6 +801,9 @@ export const engine = {
 
   pageText: (docId: string, page: number, signal?: AbortSignal): Promise<PageText> =>
     request<PageText>('GET', `${doc(docId)}/pages/${page}/text`, { signal }),
+
+  pageLinks: (docId: string, page: number, signal?: AbortSignal): Promise<PageLinks> =>
+    request<PageLinks>('GET', `${doc(docId)}/pages/${page}/links`, { signal }),
 
   outline: (docId: string): Promise<OutlineEntry[]> =>
     request<OutlineEntry[]>('GET', `${doc(docId)}/outline`),

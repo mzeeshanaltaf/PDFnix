@@ -1,8 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import type { Annotation, PageBlocks, PageText } from '@/api/engine'
+import type { Annotation, PageBlocks, PageLinks, PageText } from '@/api/engine'
 import { useTabs } from '@/state/tabs'
 import { pageImages, type PageImage } from './pageImages'
-import { pageAnnotations, pageBlocks, pageTexts, type PageDataStore } from './pageText'
+import { pageAnnotations, pageBlocks, pageLinks, pageTexts, type PageDataStore } from './pageText'
 
 /** `value`, but only once it has stopped changing for `delay` milliseconds. */
 export function useSettled<T>(value: T, delay: number): T {
@@ -113,6 +113,16 @@ export function usePageText(
   enabled: boolean
 ): PageText | null {
   return usePageData(pageTexts, docId, page, revision, enabled)
+}
+
+/** The links of a page, or `null` while they are not loaded. */
+export function usePageLinks(
+  docId: string,
+  page: number,
+  revision: number,
+  enabled: boolean
+): PageLinks | null {
+  return usePageData(pageLinks, docId, page, revision, enabled)
 }
 
 /** The page content's text blocks and images, or `null` while not loaded. */

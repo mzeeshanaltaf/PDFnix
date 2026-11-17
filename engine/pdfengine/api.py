@@ -31,6 +31,7 @@ from .edit import decode_image, delete_object, insert_image, page_blocks, replac
 from .errors import BadRequestError, NotFoundError
 from .fonts import list_fonts
 from .info import document_info, document_outline
+from .links import page_links
 from .pages import rotate_pages
 from .recovery import RecoveryStore
 from .render import ImageFormat, render_page
@@ -381,6 +382,10 @@ def build_router(sessions: SessionRegistry, recovery: RecoveryStore) -> APIRoute
     @router.get("/{doc_id}/pages/{index}/text")
     def text(doc_id: str, index: int) -> dict[str, Any]:
         return page_text(sessions.get(doc_id), index)
+
+    @router.get("/{doc_id}/pages/{index}/links")
+    def links(doc_id: str, index: int) -> dict[str, Any]:
+        return page_links(sessions.get(doc_id), index)
 
     @router.get("/{doc_id}/outline")
     def outline(doc_id: str) -> list[dict[str, Any]]:

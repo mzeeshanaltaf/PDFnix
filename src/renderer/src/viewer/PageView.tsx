@@ -7,6 +7,7 @@ import { FormLayer } from './FormLayer'
 import { cssScale, quadBounds, rectToPx, renderScale } from './geometry'
 import { usePageImage } from './hooks'
 import type { PageBox } from './layout'
+import { LinkLayer } from './LinkLayer'
 import { TextLayer } from './TextLayer'
 
 interface PageViewProps {
@@ -124,6 +125,7 @@ export const PageView = memo(function PageView({
         height={page.height}
         scale={cssScale(zoom)}
       />
+      <LinkLayer tabId={tabId} docId={docId} page={box.index} revision={revision} zoom={zoom} />
       <AnnotationLayer
         tabId={tabId}
         docId={docId}
