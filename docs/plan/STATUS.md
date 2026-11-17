@@ -2,7 +2,7 @@
 
 Single source of truth for where the project stands. Read fully at the start of every session; update during and at the end of every session. The protocol is in `CLAUDE.md` at the project root.
 
-**Last updated:** 2026-11-17 — clickable links added after release (see Deviations and decisions)
+**Last updated:** 2026-11-17 — v0.2.0 released (clickable links; see Deviations and decisions)
 
 ## Phases
 
@@ -22,7 +22,7 @@ Status values: Not started · In progress · Complete · Complete with accepted 
 
 - **Current phase:** none — all seven phases are complete (phase 7 declared complete by the user on 2026-11-14)
 - **Next action:** nothing is planned. If wanted: run the installer on a clean Windows 11 machine and tick off the installation checks listed under the phase 7 handoff note's accepted exceptions; check printing on a real printer; consider code signing (SmartScreen warns without it).
-- **Uncommitted work:** the clickable-links feature of 2026-11-17 (engine `links.py`, `GET /pages/{i}/links`, `LinkLayer.tsx`, `shared/links.ts`, `app:openLink` IPC, e2e `links.spec.ts`) is uncommitted until the user agrees to a commit.
+- **Uncommitted work:** none. v0.2.0 (clickable links) is committed, pushed, tagged `v0.2.0` and published as a GitHub release with `PDFnix-0.2.0-setup.exe` (built locally by `pnpm dist`, all checks passed; SHA-256 `be4825a05afb5c83627d4274e87612e2d869949f8f464043740b6bc358a4b1aa`).
 
 ## Current phase progress
 
@@ -161,6 +161,7 @@ Anything that differs from the plan documents, or a decision the plans left open
 
 | Date | Phase | Decision or deviation | Reason | Plans updated |
 |---|---|---|---|---|
+| 2026-11-17 | Release | **v0.2.0** released: version bumped in `package.json`, `engine/pyproject.toml`, `engine/pdfengine/__init__.py` (and `uv.lock`). Installer built locally with `pnpm dist` (lint, typecheck, 312 app + 407 engine tests, frozen-engine smoke all passed) and attached to the GitHub release; the `v0.2.0` tag also starts the CI installer build (artifact only). Upgrading over 0.1.0 is in place (same `appId`; the old uninstaller runs with `--updated` and keeps user data and registrations) | Minor version: a new feature (clickable links) | – |
 | 2026-11-17 | Post-release | **Clickable links in PDFs** (not in any phase plan). Engine `GET /v1/docs/{id}/pages/{i}/links` (`links.py`) returns web (`uri`) and same-document (`page`) links; launch/other-file links are dropped. Renderer `LinkLayer` (z-index 1, between text and annotation layers) shows them only with the Select tool: hand cursor, web links ask in the in-app confirm dialog ("Open this link?" / "Write an e-mail?") before `window.api.app.openLink`; page links jump without asking. `shared/links.ts` `externalLinkTarget` allows only http/https/mailto (`www.` gets https) and is checked again in main before `shell.openExternal`. Links are `div role=link`, not `<a href>`, so Ctrl/middle-click cannot reach the window-open handler without the prompt | User request: links in PDFs (e.g. a résumé) did nothing on hover or click | – |
 | 2026-11-15 | Release | **PDFnix is licensed AGPL-3.0-only** (`LICENSE`, `package.json`, README), replacing the README's "personal and internal use" wording. v0.1.0 was published on GitHub (public repo, unsigned installer) on 2026-11-15, before the licence file existed. Policy text (team roles, privacy statement, what the installer changes) is in the README. `.github/workflows/build-installer.yml` builds the unsigned installer on a GitHub-hosted runner (manual or on `v*` tags; no lint or tests, because the engine tests need Microsoft Word) | Plan for free code signing through SignPath Foundation, which needs an OSI-approved licence and a verifiable CI build; MuPDF is AGPL, so AGPL is the consistent choice. Next: enable 2FA, apply at signpath.org/apply, then add the SignPath signing step and sign `pdfengine.exe`/`PDFnix.exe` inside the installer too. The "PDFnix" name is still unchecked for trademarks | – |
 | 2026-11-14 | 7 | The main window now gets its icon explicitly (`icon: build/icon.ico` through electron-vite's `?asset` import in `src/main/index.ts`). Before, an unpackaged run (`pnpm dev`, `electron .`) showed Electron's own atom logo in the title bar and taskbar; it now shows the same icon as Help → About. An installed build already carried it in the exe | Reported by the user after running the app | – |
