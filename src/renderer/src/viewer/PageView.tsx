@@ -2,6 +2,7 @@ import { memo, useState } from 'react'
 import { cn } from 'cn'
 import type { PageInfo, SearchHit } from '@/api/engine'
 import { AnnotationLayer } from './AnnotationLayer'
+import { CodeLayer } from './CodeLayer'
 import { EditLayer } from './EditLayer'
 import { FormLayer } from './FormLayer'
 import { cssScale, quadBounds, rectToPx, renderScale } from './geometry'
@@ -126,6 +127,7 @@ export const PageView = memo(function PageView({
         scale={cssScale(zoom)}
       />
       <LinkLayer tabId={tabId} docId={docId} page={box.index} revision={revision} zoom={zoom} />
+      <CodeLayer tabId={tabId} page={box.index} revision={revision} zoom={zoom} />
       <AnnotationLayer
         tabId={tabId}
         docId={docId}

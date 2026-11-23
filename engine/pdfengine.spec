@@ -18,6 +18,8 @@ hiddenimports = [
     "pdfengine.ocr",
     "pdfengine.compress",
     "pdfengine.convert",
+    # Imported on first use by the codes route (keeps numpy out of the start).
+    "pdfengine.codes",
     # uvicorn picks its loop, protocol and lifespan implementations at run time.
     *collect_submodules("uvicorn"),
 ]

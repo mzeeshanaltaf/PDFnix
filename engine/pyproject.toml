@@ -5,9 +5,11 @@ description = "PDFnix engine: local HTTP service that does all PDF work"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.162.5",
+    "numpy>=2.5.4",
     "pdf2docx==0.5.13",
     "pymupdf>=2.1",
     "uvicorn>=0.54.0",
+    "zxing-cpp>=3.1.1",
 ]
 
 [dependency-groups]

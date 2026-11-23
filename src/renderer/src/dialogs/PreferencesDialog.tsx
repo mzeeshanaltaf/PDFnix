@@ -68,6 +68,7 @@ function SettingsForm(): React.JSX.Element {
   const [color, setColor] = useState(saved.highlightColor)
   const [ocr, setOcr] = useState(saved.ocrLanguages)
   const [minutes, setMinutes] = useState(String(saved.recoveryMinutes))
+  const [scanCodes, setScanCodes] = useState(saved.scanCodes)
   const { languages, error: languageError } = useInstalledLanguages()
 
   const minutesValue = Number(minutes)
@@ -101,7 +102,8 @@ function SettingsForm(): React.JSX.Element {
           defaultZoom: zoom,
           defaultLayout: layout,
           ocrLanguages: chosenOcr,
-          recoveryMinutes: minutesValue
+          recoveryMinutes: minutesValue,
+          scanCodes
         })
         showPreferences(false)
       }}
@@ -159,6 +161,21 @@ function SettingsForm(): React.JSX.Element {
               </select>
             </label>
           </div>
+        </Section>
+
+        <Section title="QR codes and barcodes">
+          <label className="flex items-center gap-2 text-[13px]">
+            <input
+              type="checkbox"
+              checked={scanCodes}
+              onChange={(event) => setScanCodes(event.target.checked)}
+            />
+            Look for codes automatically when a document opens
+          </label>
+          <p className="text-xs text-muted-foreground">
+            When this is off, documents are only searched for codes when you open the Codes panel or
+            Tools → QR Codes and Barcodes.
+          </p>
         </Section>
 
         <Section title="Comments">

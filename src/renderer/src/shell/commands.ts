@@ -12,6 +12,7 @@ import {
   showImagesToPdf,
   showMerge,
   showAbout,
+  showCodes,
   showOcrLanguages,
   showPreferences,
   showProperties,
@@ -225,6 +226,9 @@ export function runCommand(command: CommandId): void {
       break
     case 'tools.ocr':
       showToolDialog('ocrTabId', tab.id)
+      break
+    case 'tools.codes':
+      showCodes(tab.id)
       break
     case 'convert.toWord':
       showConvert(tab.id, 'word')

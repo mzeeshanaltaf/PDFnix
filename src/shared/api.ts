@@ -132,6 +132,7 @@ export const MENU_COMMANDS = [
   'tools.protect',
   'tools.ocr',
   'tools.ocrLanguages',
+  'tools.codes',
   'convert.toWord',
   'convert.toImages',
   'convert.toText',
@@ -187,6 +188,8 @@ export interface UserSettings {
   ocrLanguages: string[]
   /** Minutes an unsaved change may go without a recovery copy. */
   recoveryMinutes: number
+  /** Look for QR codes and barcodes in the background when a document opens. */
+  scanCodes: boolean
 }
 
 export type DefaultZoom = 'fit-width' | 'fit-page' | 'actual-size'

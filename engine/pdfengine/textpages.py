@@ -57,9 +57,15 @@ def content_image_rects(page: pymupdf.Page) -> list[pymupdf.Rect]:
     return [pymupdf.Rect(block[:4]) for block in textpage.extractBLOCKS() if block[6] == 1]
 
 
-def image_rects(page: pymupdf.Page) -> list[pymupdf.Rect]:
-    """Where images are drawn on the page, in the displayed (rotated) space."""
-    textpage = pymupdf.TextPage(page._get_textpage(None, pymupdf.TEXT_PRESERVE_IMAGES, None))
+def image_rects(page: pymupdf.Page, *, overhanging: bool = False) -> list[pymupdf.Rect]:
+    """Where images are drawn on the page, in the displayed (rotated) space.
+
+    MuPDF leaves out images that reach past the page's edge, even by a point
+    (a full-page scan placed at y = -1, a barcode strip wider than the page).
+    ``overhanging=True`` includes them; their rects then extend past the page.
+    """
+    clip = pymupdf.INFINITE_RECT() if overhanging else None
+    textpage = pymupdf.TextPage(page._get_textpage(clip, pymupdf.TEXT_PRESERVE_IMAGES, None))
     textpage.parent = weakref.proxy(page)
     return [pymupdf.Rect(block[:4]) for block in textpage.extractBLOCKS() if block[6] == 1]
 

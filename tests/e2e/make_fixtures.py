@@ -7,12 +7,16 @@ engine's Python): `python make_fixtures.py <folder>`.
 - links.pdf   3 pages; page 1 links to a web site, to page 3 and to a program
 - form.pdf    a text field "Full name" and a checkbox "Agree"
 - scan.pdf    one page that is only a picture of text (for OCR)
+- codes.pdf   2 pages; page 1 has a QR code holding a web address, page 2 a
+              Code 128 barcode holding "INV-4471"
 """
 
 import sys
 from pathlib import Path
 
+import numpy as np
 import pymupdf
+import zxingcpp
 
 SENTENCE = "The quick brown fox jumps over the lazy dog"
 
@@ -76,6 +80,29 @@ def links(path: Path) -> None:
             "from": pymupdf.Rect(70, 262, 230, 286),
             "uri": "file:///C:/Windows/System32/calc.exe",
         }
+    )
+    doc.save(path)
+
+
+def _code_png(content: str, fmt: zxingcpp.BarcodeFormat) -> bytes:
+    image = np.asarray(zxingcpp.create_barcode(content, fmt).to_image(scale=8))
+    rows, cols = image.shape
+    return pymupdf.Pixmap(pymupdf.csGRAY, cols, rows, image.tobytes(), False).tobytes("png")
+
+
+def codes(path: Path) -> None:
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((72, 100), "Scan to pay your bill", fontsize=20)
+    page.insert_image(
+        pymupdf.Rect(72, 140, 216, 284),
+        stream=_code_png("https://example.com/pdfnix-qr", zxingcpp.BarcodeFormat.QRCode),
+    )
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((72, 100), "Invoice", fontsize=20)
+    page.insert_image(
+        pymupdf.Rect(72, 140, 372, 200),
+        stream=_code_png("INV-4471", zxingcpp.BarcodeFormat.Code128),
     )
     doc.save(path)
 
@@ -185,6 +212,7 @@ def main() -> None:
         ("report", report),
         ("pages", pages),
         ("links", links),
+        ("codes", codes),
         ("form", form),
         ("scan", scan),
         ("long-scan", long_scan),

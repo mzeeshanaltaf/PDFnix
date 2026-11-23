@@ -1,29 +1,11 @@
 import { memo } from 'react'
-import { toast } from 'sonner'
 import type { PageLink } from '@/api/engine'
-import { confirmAction } from '@/state/dialogs'
 import { useTools } from '@/state/tools'
 import { externalLinkTarget } from '../../../shared/links'
 import { getViewer } from './controller'
 import { rectToPx } from './geometry'
 import { usePageLinks } from './hooks'
-
-/** Asks before leaving the app: a PDF can point anywhere. */
-async function openWebLink(target: string): Promise<void> {
-  const mail = target.startsWith('mailto:')
-  const yes = await confirmAction({
-    title: mail ? 'Write an e-mail?' : 'Open this link?',
-    message: mail
-      ? 'This link opens a new e-mail in your mail program, addressed to:'
-      : 'This document links to the website below. It will open in your web browser. Only continue if you trust the document and the site.',
-    details: [mail ? decodeURIComponent(target.slice('mailto:'.length).split('?')[0]) : target],
-    confirmLabel: mail ? 'Open mail program' : 'Open link'
-  })
-  if (!yes) return
-  if (!(await window.api.app.openLink(target))) {
-    toast.error('Could not open the link', { description: target })
-  }
-}
+import { openWebLink } from './openLink'
 
 interface LinkLayerProps {
   tabId: string

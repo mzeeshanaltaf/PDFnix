@@ -2,7 +2,8 @@
 
 Starts the executable the way the app does (token, owner PID, tessdata and log
 folders in the environment), waits for its ready line, and through the HTTP API:
-checks health, opens a two-page scanned PDF, renders a page, runs OCR (a job in
+checks health, opens a two-page scanned PDF, renders a page, reads its QR
+code, runs OCR (a job in
 a child process, which is where a missing ``freeze_support`` would show),
 searches the recognised text, compresses to a file, converts to Word, and
 closes. Then it stops the engine and checks that no engine process is left and
@@ -21,7 +22,9 @@ import time
 from pathlib import Path
 
 import httpx
+import numpy as np
 import pymupdf
+import zxingcpp
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_EXE = ROOT / "dist-engine" / "pdfengine" / "pdfengine.exe"
@@ -29,12 +32,21 @@ TESSDATA = ROOT / "resources" / "tessdata"
 READY_TIMEOUT = 60.0
 
 
+SMOKE_QR = "https://example.com/smoke"
+
+
 def make_scan(path: Path) -> None:
-    """Two image-only pages with known words (no text layer)."""
+    """Two image-only pages with known words and a QR code (no text layer)."""
     source = pymupdf.open()
     page = source.new_page(width=612, height=792)
     page.insert_text((72, 120), "Invoice number 4471 for Rosalind", fontsize=22)
     page.insert_text((72, 180), "The quick brown fox jumps over the lazy dog", fontsize=16)
+    code = np.asarray(
+        zxingcpp.create_barcode(SMOKE_QR, zxingcpp.BarcodeFormat.QRCode).to_image(scale=8)
+    )
+    rows, cols = code.shape
+    qr = pymupdf.Pixmap(pymupdf.csGRAY, cols, rows, code.tobytes(), False)
+    page.insert_image(pymupdf.Rect(400, 600, 520, 720), pixmap=qr)
     picture = page.get_pixmap(dpi=200)
     doc = pymupdf.open()
     for _ in range(2):
@@ -175,6 +187,10 @@ def main() -> int:
             and render.content[:4] in (b"\x89PNG", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xdb"),
             f"{len(render.content)} bytes, {render.headers.get('content-type')}",
         )
+
+        codes = client.get(f"/docs/{doc_id}/pages/0/codes")
+        found = [code["text"] for code in codes.json().get("codes", [])] if codes.is_success else []
+        steps.check("QR code (zxing-cpp)", found == [SMOKE_QR], f"{codes.status_code} {found}")
 
         t = time.monotonic()
         ocr = run_job("ocr", doc_id, {"dpi": 200})

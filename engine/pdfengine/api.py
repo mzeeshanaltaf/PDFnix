@@ -387,6 +387,13 @@ def build_router(sessions: SessionRegistry, recovery: RecoveryStore) -> APIRoute
     def links(doc_id: str, index: int) -> dict[str, Any]:
         return page_links(sessions.get(doc_id), index)
 
+    @router.get("/{doc_id}/pages/{index}/codes")
+    def codes(doc_id: str, index: int) -> dict[str, Any]:
+        # Imported on first use: numpy and zxing-cpp would slow the engine's start.
+        from .codes import page_codes
+
+        return page_codes(sessions.get(doc_id), index)
+
     @router.get("/{doc_id}/outline")
     def outline(doc_id: str) -> list[dict[str, Any]]:
         return document_outline(sessions.get(doc_id))

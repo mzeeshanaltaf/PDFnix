@@ -35,6 +35,8 @@ interface DialogsState {
   imagesToPdfOpen: boolean
   aboutOpen: boolean
   shortcutsOpen: boolean
+  /** The tab whose QR codes and barcodes the results dialog lists, or `null`. */
+  codesTabId: string | null
 }
 
 export type ConvertKind = 'word' | 'images' | 'text'
@@ -58,8 +60,13 @@ export const useDialogs = create<DialogsState>(() => ({
   convert: null,
   imagesToPdfOpen: false,
   aboutOpen: false,
-  shortcutsOpen: false
+  shortcutsOpen: false,
+  codesTabId: null
 }))
+
+export function showCodes(tabId: string | null): void {
+  useDialogs.setState({ codesTabId: tabId })
+}
 
 export type ToolDialog =
   | 'organiseTabId'

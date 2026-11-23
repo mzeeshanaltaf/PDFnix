@@ -3,6 +3,7 @@ import { FileDown } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AboutDialog } from '@/dialogs/AboutDialog'
+import { CodesDialog } from '@/dialogs/CodesDialog'
 import { CompressDialog } from '@/dialogs/CompressDialog'
 import { ConfirmDialog } from '@/dialogs/ConfirmDialog'
 import { ConvertDialog } from '@/dialogs/ConvertDialog'
@@ -41,6 +42,7 @@ import { startEngineMonitor } from '@/state/engine'
 import { startRecentSync } from '@/state/recent'
 import { startSettingsSync } from '@/state/settings'
 import { selectActiveTab, useTabs } from '@/state/tabs'
+import { startCodeScanner } from '@/viewer/codeScan'
 import { PageList } from '@/viewer/PageList'
 
 function carriesFiles(event: DragEvent): boolean {
@@ -108,6 +110,7 @@ function App(): React.JSX.Element {
   useEffect(() => startSettingsSync(), [])
   useEffect(() => startRecentSync(), [])
   useEffect(() => startDocumentSync(), [])
+  useEffect(() => startCodeScanner(), [])
   useEffect(() => installShortcuts(), [])
   useEffect(() => installPendingCommits(), [])
   useEffect(() => installImagePaste(() => useTabs.getState().activeTabId), [])
@@ -150,6 +153,7 @@ function App(): React.JSX.Element {
       <OcrDialog />
       <OcrLanguagesDialog />
       <ConvertDialog />
+      <CodesDialog />
       <ImagesToPdfDialog />
       <PrintDialog />
       <JobProgressDialog />

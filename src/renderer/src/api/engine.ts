@@ -327,6 +327,23 @@ export interface PageLinks {
   links: PageLink[]
 }
 
+/** A QR code or barcode found on a page. */
+export interface PageCode {
+  /** Readable format name, e.g. "QR Code", "Code 128", "Data Matrix". */
+  format: string
+  /** The decoded content; for binary content, its bytes in hex. */
+  text: string
+  binary: boolean
+  /** Corners in points (top left, top right, bottom right, bottom left), displayed space. */
+  quad: [number, number][]
+  /** Bounding box of `quad`. */
+  rect: Rect
+}
+
+export interface PageCodes {
+  codes: PageCode[]
+}
+
 export interface OutlineEntry {
   title: string
   /** 0-based page index, or null when the entry points outside the document. */
@@ -804,6 +821,9 @@ export const engine = {
 
   pageLinks: (docId: string, page: number, signal?: AbortSignal): Promise<PageLinks> =>
     request<PageLinks>('GET', `${doc(docId)}/pages/${page}/links`, { signal }),
+
+  pageCodes: (docId: string, page: number, signal?: AbortSignal): Promise<PageCodes> =>
+    request<PageCodes>('GET', `${doc(docId)}/pages/${page}/codes`, { signal }),
 
   outline: (docId: string): Promise<OutlineEntry[]> =>
     request<OutlineEntry[]>('GET', `${doc(docId)}/outline`),

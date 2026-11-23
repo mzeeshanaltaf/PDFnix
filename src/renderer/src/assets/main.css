@@ -283,6 +283,57 @@
   }
 
   /*
+   * QR codes and barcodes, just above the links: a dashed outline that opens
+   * the code's pop-up (select tool only), and a one-off blink for a code
+   * picked in the panel or dialog. Colours are on the white page in both themes.
+   */
+  .pdf-code-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .pdf-code {
+    position: absolute;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    pointer-events: auto;
+    cursor: pointer;
+    border-radius: 2px;
+    outline: 1.5px dashed rgb(0 96 223 / 0.6);
+    outline-offset: 3px;
+  }
+
+  .pdf-code:hover,
+  .pdf-code[data-state='open'] {
+    background: rgb(0 96 223 / 0.08);
+    outline-style: solid;
+  }
+
+  .pdf-code:focus-visible {
+    outline: 2px solid rgb(0 96 223 / 0.85);
+  }
+
+  .pdf-code-flash {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 3px;
+    animation: pdf-code-flash 1.8s ease-out forwards;
+  }
+
+  @keyframes pdf-code-flash {
+    0%,
+    50% {
+      box-shadow: 0 0 0 5px rgb(234 88 12 / 0.85);
+    }
+    100% {
+      box-shadow: 0 0 0 5px rgb(234 88 12 / 0);
+    }
+  }
+
+  /*
    * The annotation layer, above the text layer. It is transparent to the
    * pointer except for note hit areas, the toolbar and the comment pop-up,
    * so text under highlights can still be selected. Its controls sit on

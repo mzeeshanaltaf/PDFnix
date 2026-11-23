@@ -11,7 +11,7 @@ import type {
 } from '../api/engine'
 import { clampZoom, type ZoomMode } from '../viewer/zoom'
 
-export type SidePanelId = 'thumbnails' | 'outline' | 'search' | 'annotations'
+export type SidePanelId = 'thumbnails' | 'outline' | 'search' | 'annotations' | 'codes'
 
 /** How a newly opened tab is zoomed and laid out (Settings; set by state/settings.ts). */
 let defaultView: { zoomMode: ZoomMode; layout: LayoutMode } = {

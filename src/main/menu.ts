@@ -221,6 +221,7 @@ export function buildMenu(): void {
         command('Compress…', 'tools.compress'),
         command('Protect with Password…', 'tools.protect'),
         command('Recognise Text (OCR)…', 'tools.ocr'),
+        command('QR Codes and Barcodes…', 'tools.codes'),
         command('OCR Languages…', 'tools.ocrLanguages', undefined, { needsDocument: false }),
         {
           label: 'Convert',

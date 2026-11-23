@@ -23,7 +23,8 @@ from packaging.requirements import Requirement
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "resources" / "licenses" / "THIRD-PARTY-NOTICES.txt"
 
-ENGINE_ROOTS = ["fastapi", "pdf2docx", "pymupdf", "uvicorn"]
+# Kept in step with the dependencies in engine/pyproject.toml.
+ENGINE_ROOTS = ["fastapi", "numpy", "pdf2docx", "pymupdf", "uvicorn", "zxing-cpp"]
 # Kept in step with the excludes in engine/pdfengine.spec.
 EXCLUDED = {
     "pymupdf4llm",

@@ -1,5 +1,6 @@
-import { LayoutGrid, ListTree, MessageSquareText, Search as SearchIcon } from 'lucide-react'
+import { LayoutGrid, ListTree, MessageSquareText, QrCode, Search as SearchIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { Codes } from '@/panels/Codes'
 import { Comments } from '@/panels/Comments'
 import { Outline } from '@/panels/Outline'
 import { Search } from '@/panels/Search'
@@ -12,7 +13,8 @@ const PANELS: { id: SidePanelId; label: string; icon: LucideIcon }[] = [
   { id: 'thumbnails', label: 'Pages', icon: LayoutGrid },
   { id: 'outline', label: 'Outline', icon: ListTree },
   { id: 'search', label: 'Find', icon: SearchIcon },
-  { id: 'annotations', label: 'Comments', icon: MessageSquareText }
+  { id: 'annotations', label: 'Comments', icon: MessageSquareText },
+  { id: 'codes', label: 'QR Codes', icon: QrCode }
 ]
 
 function PanelBody({ tab, panel }: { tab: DocumentTab; panel: SidePanelId }): React.JSX.Element {
@@ -25,6 +27,8 @@ function PanelBody({ tab, panel }: { tab: DocumentTab; panel: SidePanelId }): Re
       return <Search tab={tab} />
     case 'annotations':
       return <Comments tab={tab} />
+    case 'codes':
+      return <Codes tab={tab} />
   }
 }
 

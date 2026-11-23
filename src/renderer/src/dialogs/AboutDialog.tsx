@@ -19,7 +19,10 @@ const NOTICES: { name: string; licence: string }[] = [
   { name: 'PyMuPDF and MuPDF (Artifex Software)', licence: 'GNU AGPL v3' },
   { name: 'SumatraPDF (printing)', licence: 'GNU GPL v3' },
   { name: 'Tesseract OCR language data', licence: 'Apache 2.0' },
-  { name: 'OpenCV, pdf2docx, FastAPI, Uvicorn, NumPy, lxml', licence: 'Apache 2.0, MIT, BSD' },
+  {
+    name: 'OpenCV, zxing-cpp, pdf2docx, FastAPI, Uvicorn, NumPy, lxml',
+    licence: 'Apache 2.0, MIT, BSD'
+  },
   { name: 'Python', licence: 'PSF' },
   { name: 'Electron, Chromium, React, Radix UI', licence: 'MIT, BSD and others' },
   {

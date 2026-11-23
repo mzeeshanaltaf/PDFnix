@@ -4,7 +4,7 @@ A PDF reader and editor for Windows. The app is built with Electron, React and T
 
 What it does:
 
-- **Read**: tabs, zoom (10–800 %), continuous / single / two-page layouts, rotation, thumbnails, outline, text selection and copy, search.
+- **Read**: tabs, zoom (10–800 %), continuous / single / two-page layouts, rotation, thumbnails, outline, text selection and copy, search, clickable links, QR code and barcode reading.
 - **Annotate**: highlight, underline, strikeout, notes and comments, text boxes, shapes, freehand drawing, with undo and redo of every change.
 - **Edit**: replace text in place, add and delete pictures, signatures and initials (drawn, typed or scanned).
 - **Pages and documents**: reorder, insert, delete, rotate, extract, split, merge; fill and flatten forms; redact; watermarks, headers and footers.
@@ -39,7 +39,7 @@ pnpm dev
 pnpm dist
 ```
 
-This runs, in order: lint, type-check, app tests, engine tests, `build:engine` (freezes the engine with PyInstaller into `dist-engine/pdfengine/`), `smoke:engine` (starts the frozen engine and runs health, render, OCR, compress and PDF → Word through it), `notices` (writes `resources/licenses/THIRD-PARTY-NOTICES.txt`), the app build, and electron-builder. The result is `release/PDFnix-<version>-setup.exe`.
+This runs, in order: lint, type-check, app tests, engine tests, `build:engine` (freezes the engine with PyInstaller into `dist-engine/pdfengine/`), `smoke:engine` (starts the frozen engine and runs health, render, QR code reading, OCR, compress and PDF → Word through it), `notices` (writes `resources/licenses/THIRD-PARTY-NOTICES.txt`), the app build, and electron-builder. The result is `release/PDFnix-<version>-setup.exe`.
 
 `pnpm dist:dir` builds only the unpacked app (`release/win-unpacked/PDFnix.exe`), which is quicker for checks.
 

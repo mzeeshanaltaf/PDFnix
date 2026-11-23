@@ -17,7 +17,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   defaultZoom: 'actual-size',
   defaultLayout: 'continuous',
   ocrLanguages: ['eng'],
-  recoveryMinutes: RECOVERY_MINUTES.default
+  recoveryMinutes: RECOVERY_MINUTES.default,
+  scanCodes: true
 }
 
 function applyUserSettings(settings: UserSettings): void {
@@ -28,7 +29,8 @@ function applyUserSettings(settings: UserSettings): void {
     defaultZoom: settings.defaultZoom,
     defaultLayout: settings.defaultLayout,
     ocrLanguages: settings.ocrLanguages,
-    recoveryMinutes: settings.recoveryMinutes
+    recoveryMinutes: settings.recoveryMinutes,
+    scanCodes: settings.scanCodes
   })
   setDefaultView(settings.defaultZoom, settings.defaultLayout)
   // The highlight tool starts with the default colour; a colour picked on

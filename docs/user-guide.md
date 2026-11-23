@@ -19,7 +19,7 @@ To make PDFnix open PDF files when you double-click them: right-click any PDF �
 - Scroll with the mouse wheel or the arrow keys; Page Up/Down and Space move a screen at a time; Home and End go to the first and last page. Type a page number in the toolbar to jump there.
 - Zoom with Ctrl+mouse wheel, Ctrl + and Ctrl −, or the zoom box. Ctrl+1 fits the width, Ctrl+2 fits the whole page, Ctrl+0 is 100 %.
 - **View** offers continuous, single-page and two-page layouts. Ctrl+R turns the current page right, Ctrl+Shift+R left.
-- F4 shows the side panel: page thumbnails, the document's bookmarks, search and comments.
+- F4 shows the side panel: page thumbnails, the document's bookmarks, search, comments and QR codes.
 - **Find** (Ctrl+F) searches the text; Enter or F3 goes to the next result. A scanned document has no text to search until you run **Recognise Text (OCR)**.
 
 ## Comments and markup
@@ -50,8 +50,19 @@ To make PDFnix open PDF files when you double-click them: right-click any PDF �
 - **Recognise Text (OCR)** makes scanned pages searchable and selectable. English is included; **OCR Languages** downloads others.
 - **Convert** saves the PDF as a Word document, pictures or text, makes a PDF from pictures, and turns Word documents into PDFs (this needs Microsoft Word or LibreOffice).
 - **Print** (Ctrl+P) prints all pages or a range.
+- **QR Codes and Barcodes** lists every QR code and barcode in the document with what it contains. See below.
 
 Long jobs show their progress and can be cancelled.
+
+## QR codes and barcodes
+
+When you open a document, PDFnix looks for QR codes and barcodes in the background, including small ones inside scans and photos. If it finds any, a message says so; **View** lists them.
+
+- With the Select tool, each code has a dashed outline. Click it to see what it contains, **Copy** it, or, for a web or e-mail address, **Open link…** (PDFnix asks before opening it).
+- The **QR Codes** side panel lists the codes by page. Click one to go to it.
+- **Tools → QR Codes and Barcodes…** shows them all in a window, with **Copy all**.
+- Readable types: QR, Micro QR, rMQR, Data Matrix, Aztec, PDF417, Code 128, Code 39, EAN and UPC.
+- To stop the automatic search, turn it off in Settings. Codes are then only looked for when you open the panel or the window.
 
 ## Saving
 
@@ -61,7 +72,7 @@ Long jobs show their progress and can be cancelled.
 
 ## Settings
 
-**File → Settings** (Ctrl+,) sets the theme (same as Windows, light or dark), how documents open (zoom and page layout), your name for comments, the default highlight colour, the OCR languages to start with, and how often recovery copies are made.
+**File → Settings** (Ctrl+,) sets the theme (same as Windows, light or dark), how documents open (zoom and page layout), your name for comments, the default highlight colour, the OCR languages to start with, whether to look for QR codes and barcodes automatically, and how often recovery copies are made.
 
 **Help → Keyboard Shortcuts** (Ctrl+/ or F1) lists every shortcut.
 

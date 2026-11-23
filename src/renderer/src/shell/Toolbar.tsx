@@ -32,6 +32,7 @@ import {
   PenLine,
   Plus,
   Printer,
+  QrCode,
   Redo2,
   RotateCcw,
   RotateCw,
@@ -186,6 +187,7 @@ function DocumentMenu({ none }: { none: boolean }): React.JSX.Element {
         {item('Redact…', 'document.redact', EyeOff, 'Ctrl+Shift+X')}
         {item('Watermark…', 'document.watermark', Stamp)}
         {item('Header and footer…', 'document.headerFooter', PanelTop)}
+        {item('QR codes and barcodes…', 'tools.codes', QrCode)}
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Form</DropdownMenuLabel>
         {item('Highlight form fields', 'forms.highlight', ClipboardList)}

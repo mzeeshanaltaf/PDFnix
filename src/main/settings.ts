@@ -30,6 +30,7 @@ interface SettingsSchema {
   defaultLayout: LayoutMode
   ocrLanguages: string[]
   recoveryMinutes: number
+  scanCodes: boolean
 }
 
 export const DEFAULT_HIGHLIGHT_COLOR = '#ffd54f'
@@ -43,7 +44,8 @@ const DEFAULTS: SettingsSchema = {
   defaultZoom: DEFAULT_ZOOM,
   defaultLayout: DEFAULT_LAYOUT,
   ocrLanguages: DEFAULT_OCR_LANGUAGES,
-  recoveryMinutes: RECOVERY_MINUTES.default
+  recoveryMinutes: RECOVERY_MINUTES.default,
+  scanCodes: true
 }
 
 let store: Store<SettingsSchema> | null = null
@@ -94,7 +96,8 @@ export function getUserSettings(): UserSettings {
     defaultZoom: zoomOrDefault(getStore().get('defaultZoom')),
     defaultLayout: layoutOrDefault(getStore().get('defaultLayout')),
     ocrLanguages: ocrLanguagesOrDefault(getStore().get('ocrLanguages')),
-    recoveryMinutes: recoveryMinutesOrDefault(getStore().get('recoveryMinutes'))
+    recoveryMinutes: recoveryMinutesOrDefault(getStore().get('recoveryMinutes')),
+    scanCodes: getStore().get('scanCodes') !== false
   }
 }
 
@@ -121,6 +124,9 @@ export function setUserSettings(patch: unknown): UserSettings {
   }
   if (candidate.recoveryMinutes !== undefined) {
     getStore().set('recoveryMinutes', recoveryMinutesOrDefault(candidate.recoveryMinutes))
+  }
+  if (typeof candidate.scanCodes === 'boolean') {
+    getStore().set('scanCodes', candidate.scanCodes)
   }
   return getUserSettings()
 }
