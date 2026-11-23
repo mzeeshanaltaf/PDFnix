@@ -2,7 +2,7 @@ import { expect, test } from './harness'
 
 const URL = 'https://example.com/pdfnix-qr'
 
-test('QR codes and barcodes: found in the background, shown in toast, dialog, page and panel', async ({
+test('QR codes and barcodes: found in the background, shown in toast, dialog, page and panel @smoke', async ({
   pdfnix
 }) => {
   const { page, app } = pdfnix

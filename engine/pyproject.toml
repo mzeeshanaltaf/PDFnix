@@ -1,6 +1,6 @@
 [project]
 name = "pdfengine"
-version = "0.2.0"
+version = "0.3.0"
 description = "PDFnix engine: local HTTP service that does all PDF work"
 requires-python = ">=3.12"
 dependencies = [
