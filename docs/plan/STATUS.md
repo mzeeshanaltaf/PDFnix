@@ -2,7 +2,7 @@
 
 Single source of truth for where the project stands. Read fully at the start of every session; update during and at the end of every session. The protocol is in `CLAUDE.md` at the project root.
 
-**Last updated:** 2026-11-24 — phase 9 (local AI backend) complete, not yet committed; phase 10 is next
+**Last updated:** 2026-11-24 — phase 9 (local AI backend) complete, committed and pushed; phase 10 is next
 
 ## Phases
 
@@ -24,7 +24,7 @@ Status values: Not started · In progress · Complete · Complete with accepted 
 ## Current position
 
 - **Current phase:** 10 — AI assistant panel and menu actions (not started). Phase 9 was completed on 2026-11-24: every item of its Verification and Done when passed (see the phase 9 handoff note). Phases 8–10 were planned on 2026-11-24 at the user's request; the user's decisions are in phase 8's "Background" section.
-- **Next action:** if not yet done, commit phase 9 (the work is **uncommitted** until the user agrees to the proposed commit). Then start phase 10 in a new session: read `phase-10-ai-assistant-panel.md` in full, and phase 9's "LM Studio …" rows under Verified facts first (the phase 10 plan was already adjusted for them: `contextLength` kept in the conversation, `reasoning: 'off'`, `stream_ended`).
+- **Next action:** start phase 10 in a new session. Phase 9 is committed (`03b2c38`) and pushed to `origin/main` (2026-11-24, at the user's request). In that session: read `phase-10-ai-assistant-panel.md` in full, and phase 9's "LM Studio …" rows under Verified facts first (the phase 10 plan was already adjusted for them: `contextLength` kept in the conversation, `reasoning: 'off'`, `stream_ended`).
 - **LM Studio on this machine:** 0.4.16 at `C:\Program Files\LM Studio`, CLI `%USERPROFILE%\.lmstudio\bin\lms.exe`. Model key `google/gemma-4-26b-a4b` (plus the embedding model `text-embedding-nomic-embed-text-v1.5`). The phase 9 session left the server **stopped** and no model loaded, as it found them; run `lms server start` before live checks. LM Studio settings: load guardrails "high", `unloadPreviousJITModelOnLoad` on, JIT TTL 60 min. To script the app while another PDFnix dev instance runs, give it its own profile: `$env:PDFNIX_USER_DATA = '<folder>'` (separate single-instance lock) and another `--remoteDebuggingPort`.
 - **Still open from earlier, if wanted:** run the installer on a clean Windows 11 machine and tick off the installation checks listed under the phase 7 handoff note's accepted exceptions; check printing on a real printer; consider code signing (SmartScreen warns without it).
 - **QR code and barcode reading (2026-11-23):** done and released as **v0.3.0** (see Deviations). It was checked on the user's LESCO bill: both QR codes and the Code 128 barcode were found. The bill sits at `docs/11.PDF`, holds personal data and is deliberately **left untracked**; never commit it.
