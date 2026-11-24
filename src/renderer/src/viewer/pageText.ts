@@ -72,6 +72,19 @@ export class PageDataStore<T> {
     }
   }
 
+  /**
+   * A page's data, from the cache or fetched now (and then cached). For a
+   * one-off need outside a component; components use `request` through the
+   * hooks so leaving pages can withdraw theirs.
+   */
+  async load(docId: string, page: number, revision: number): Promise<T> {
+    const cached = this.peek(docId, page, revision)
+    if (cached) return cached
+    const value = await this.fetcher(docId, page, new AbortController().signal)
+    this.put(docId, page, revision, value)
+    return value
+  }
+
   /** Loads a page's data unless it is cached. Returns a function that withdraws the request. */
   request(docId: string, page: number, revision: number): () => void {
     const key = keyOf(docId, page, revision)

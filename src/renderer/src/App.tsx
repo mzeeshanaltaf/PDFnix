@@ -27,7 +27,7 @@ import { PreferencesDialog } from '@/dialogs/PreferencesDialog'
 import { PropertiesDialog } from '@/dialogs/PropertiesDialog'
 import { RecoveryDialog } from '@/dialogs/RecoveryDialog'
 import { SignatureDialog } from '@/dialogs/SignatureDialog'
-import { SelectionToolbar } from '@/tools/SelectionToolbar'
+import { SelectionMenu } from '@/tools/SelectionMenu'
 import { runCommand } from '@/shell/commands'
 import { EmptyState } from '@/shell/EmptyState'
 import { installShortcuts } from '@/shell/shortcuts'
@@ -138,7 +138,7 @@ function App(): React.JSX.Element {
           </div>
         </div>
       )}
-      <SelectionToolbar />
+      <SelectionMenu />
       <RecoveryDialog />
       <PreferencesDialog />
       <SignatureDialog />

@@ -103,7 +103,12 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['S'], action: 'Shapes', command: 'tools.shape' },
       { keys: ['D'], action: 'Draw', command: 'tools.draw' },
       { keys: ['X'], action: 'Delete object', command: 'tools.deleteObject' },
-      { keys: ['R'], action: 'Redact', command: 'tools.redact' }
+      { keys: ['R'], action: 'Redact', command: 'tools.redact' },
+      {
+        keys: ['Right-click'],
+        action: 'Selection menu, on selected text',
+        elsewhere: true
+      }
     ]
   },
   {

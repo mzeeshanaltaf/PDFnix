@@ -68,6 +68,8 @@ class FontChoice:
     archive: pymupdf.Archive | None = None
     #: ``@font-face`` rule for a document font.
     font_face: str = ""
+    #: The document font's file and the name ``font_face`` refers to it by.
+    font_file: tuple[bytes, str] | None = None
 
     def css(self) -> str:
         return (
@@ -169,9 +171,62 @@ def choose_for_replacement(
                 substituted=False,
                 archive=archive,
                 font_face=f"@font-face {{font-family: {css_family}; src: url({file_name});}}",
+                font_file=(buffer, file_name),
             )
     standard = bool(_STANDARD.match(span_font.replace(" ", "")))
     return builtin_choice(family, bold, italic, substituted=not standard)
+
+
+#: PyMuPDF's codes for the built-in fonts: (family, bold, italic) -> code.
+_BUILTIN_CODES = {
+    ("sans", False, False): "helv",
+    ("sans", True, False): "hebo",
+    ("sans", False, True): "heit",
+    ("sans", True, True): "hebi",
+    ("serif", False, False): "tiro",
+    ("serif", True, False): "tibo",
+    ("serif", False, True): "tiit",
+    ("serif", True, True): "tibi",
+    ("mono", False, False): "cour",
+    ("mono", True, False): "cobo",
+    ("mono", False, True): "coit",
+    ("mono", True, True): "cobi",
+}
+
+
+@dataclass
+class RunFont:
+    """A font to write a run of text in directly (``TextWriter``), replacing
+    text that was in another font."""
+
+    font: pymupdf.Font
+    #: Shown to the user.
+    label: str
+    #: True when the original font could not be used.
+    substituted: bool
+
+
+def font_for_run(
+    doc: pymupdf.Document, page: pymupdf.Page, span_font: str, flags: int, text: str
+) -> RunFont | None:
+    """The document's own font for ``text`` when it is embedded and can draw
+    every character, else the matching built-in font. None when not even the
+    built-in font has every character (the caller then lets MuPDF's HTML
+    layout pick fallback fonts)."""
+    found = _page_font(page, span_font)
+    if found is not None and text.strip():
+        xref, basefont = found
+        buffer = _usable_buffer(doc, xref, text)
+        if buffer is not None:
+            return RunFont(pymupdf.Font(fontbuffer=buffer), base_name(basefont), False)
+    bold, italic = style_for(span_font, flags)
+    family = family_for(span_font, flags)
+    font = pymupdf.Font(_BUILTIN_CODES[(family, bold, italic)])
+    if any(not char.isspace() and not font.has_glyph(ord(char)) for char in set(text)):
+        return None
+    standard = bool(_STANDARD.match(span_font.replace(" ", "")))
+    label = next(label for key, label, _ in BUILTIN_FAMILIES if key == family)
+    return RunFont(font, label, substituted=not standard)
 
 
 def list_fonts(session: Session | None) -> list[dict[str, Any]]:

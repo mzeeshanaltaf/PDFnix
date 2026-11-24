@@ -351,6 +351,152 @@ def test_text_edits_undo_and_redo_after_save(client, open_doc, sample_pdf):
     assert "quick" not in text and "Replaced" in text
 
 
+# --- Keeping the formatting of edited text ------------------------------------
+
+PARAGRAPH = (
+    "<p>Sales grew in every region this quarter. The <b>northern office</b> led the "
+    "way with a <i>record</i> month in March, while costs stayed "
+    "<span style='color:#c00000'>flat</span>. Hiring continued at the planned pace "
+    "and the new warehouse opened on schedule, which shortened delivery times for "
+    "customers across the country.</p>"
+)
+
+
+@pytest.fixture
+def formatted_pdf(tmp_path):
+    """A justified paragraph with a bold, an italic and a red part, under a heading."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_htmlbox(
+        pymupdf.Rect(72, 72, 523, 110),
+        "<h1>Quarterly Report</h1>",
+        css="h1 { font-family: sans-serif; font-size: 22pt; margin: 0; }",
+    )
+    page.insert_htmlbox(
+        pymupdf.Rect(72, 120, 523, 260),
+        PARAGRAPH,
+        css="p { font-family: serif; font-size: 11pt; text-align: justify; margin: 0; "
+        "line-height: 1.4; }",
+    )
+    path = tmp_path / "formatted.pdf"
+    doc.save(path)
+    doc.close()
+    return str(path)
+
+
+def paragraph(client, doc_id):
+    blocks = client.get(f"/v1/docs/{doc_id}/pages/0/blocks").json()["blocks"]
+    return next(block for block in blocks if "Sales" in block["text"])
+
+
+def spans_with(block, text):
+    return [span for line in block["lines"] for span in line["spans"] if text in span["text"]]
+
+
+def page_pixels(client, doc_id):
+    return client.get(
+        f"/v1/docs/{doc_id}/pages/0/render", params={"scale": 1, "format": "png"}
+    ).content
+
+
+def test_editing_a_word_leaves_the_other_lines_and_styles_alone(client, open_doc, formatted_pdf):
+    doc_id = open_doc(formatted_pdf)["docId"]
+    before = paragraph(client, doc_id)
+    pixels = page_pixels(client, doc_id)
+
+    body = replace(client, doc_id, 0, before["bbox"], before["text"].replace("March", "April"))
+
+    after = paragraph(client, doc_id)
+    assert body["substituted"] is False and body["fontScale"] == 1
+    assert len(after["lines"]) == len(before["lines"])
+    for old, new in zip(before["lines"], after["lines"], strict=True):
+        if "March" in "".join(span["text"] for span in old["spans"]):
+            assert "April" in "".join(span["text"] for span in new["spans"])
+            # Same place, and still reaching the right edge (justified).
+            assert new["bbox"][1] == pytest.approx(old["bbox"][1], abs=0.5)
+            assert new["bbox"][2] == pytest.approx(old["bbox"][2], abs=1.5)
+        else:
+            assert new == old
+    assert all("Bold" in span["font"] for span in spans_with(after, "northern"))
+    assert all("Italic" in span["font"] for span in spans_with(after, "record"))
+    assert [span["color"] for span in spans_with(after, "flat")] == ["#c00000"]
+
+    client.post(f"/v1/docs/{doc_id}/undo")
+    assert page_pixels(client, doc_id) == pixels
+
+
+def test_typed_text_takes_the_style_of_the_text_it_replaces(client, open_doc, formatted_pdf):
+    doc_id = open_doc(formatted_pdf)["docId"]
+    before = paragraph(client, doc_id)
+
+    replace(client, doc_id, 0, before["bbox"], before["text"].replace("northern", "southern"))
+
+    after = paragraph(client, doc_id)
+    assert spans_with(after, "southern") and all(
+        "Bold" in span["font"] for span in spans_with(after, "southern")
+    )
+    assert not any("Bold" in span["font"] for span in spans_with(after, "Sales"))
+
+
+def test_a_much_longer_line_reflows_the_paragraph_in_its_styles(client, open_doc, formatted_pdf):
+    doc_id = open_doc(formatted_pdf)["docId"]
+    before = paragraph(client, doc_id)
+    longer = before["text"].replace("month in March", "month in early March and April")
+
+    replace(client, doc_id, 0, before["bbox"], longer)
+
+    after = paragraph(client, doc_id)
+    words = " ".join(
+        "".join(span["text"] for span in line["spans"]) for line in after["lines"]
+    ).split()
+    assert words == longer.split()
+    assert all("Bold" in span["font"] for span in spans_with(after, "northern"))
+    assert all("Italic" in span["font"] for span in spans_with(after, "record"))
+    assert [span["color"] for span in spans_with(after, "flat")] == ["#c00000"]
+    # Still justified: every line but the last reaches the same right edge.
+    rights = [line["bbox"][2] for line in after["lines"][:-1]]
+    assert max(rights) - min(rights) <= 1.5
+
+
+def test_an_unchanged_block_makes_no_undo_step(client, open_doc, formatted_pdf):
+    doc_id = open_doc(formatted_pdf)["docId"]
+    before = paragraph(client, doc_id)
+
+    body = replace(client, doc_id, 0, before["bbox"], before["text"])
+
+    assert body["dirtyPages"] == [] and body["canUndo"] is False
+
+
+def test_line_edits_undo_and_redo_after_save(client, open_doc, formatted_pdf):
+    doc_id = open_doc(formatted_pdf)["docId"]
+    before = paragraph(client, doc_id)
+    replace(client, doc_id, 0, before["bbox"], before["text"].replace("March", "April"))
+    save(client, doc_id)
+
+    assert client.post(f"/v1/docs/{doc_id}/undo").json()["undone"] == "Edit Text"
+    assert "March" in paragraph(client, doc_id)["text"]
+    client.post(f"/v1/docs/{doc_id}/redo")
+    assert "April" in paragraph(client, doc_id)["text"]
+
+
+def test_styled_runs_follow_the_original_spans():
+    from pdfengine.edit import styled_runs
+
+    plain, bold = {"text": "The "}, {"text": "big"}
+    spans = [plain, bold, {"text": " dog"}]
+
+    def shape(text):
+        return [(run.text, spans.index(run.span)) for run in styled_runs(spans, text)]
+
+    assert shape("The big dog") == [("The ", 0), ("big", 1), (" dog", 2)]
+    # Replaced text takes the style of what it replaces.
+    assert shape("The red dog") == [("The ", 0), ("red", 1), (" dog", 2)]
+    # Text typed after a word continues that word's style.
+    assert shape("The bigger dog") == [("The ", 0), ("bigger", 1), (" dog", 2)]
+    # At the very start, the style of the first span.
+    assert shape("So The big dog")[0] == ("So The ", 0)
+
+
 # --- Images ------------------------------------------------------------------
 
 

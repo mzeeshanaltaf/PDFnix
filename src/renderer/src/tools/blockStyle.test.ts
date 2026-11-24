@@ -1,6 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import type { TextBlock } from '@/api/engine'
-import { blockStyle } from './blockStyle'
+import type { Rect, TextBlock } from '@/api/engine'
+import { blockForPoint, blockStyle } from './blockStyle'
+
+describe('blockForPoint', () => {
+  const boxes = (...rects: Rect[]): { id: number; bbox: Rect }[] =>
+    rects.map((bbox, id) => ({ id, bbox }))
+
+  it('finds the block that holds the point', () => {
+    const blocks = boxes([72, 72, 540, 120], [72, 140, 540, 300])
+    expect(blockForPoint(blocks, { x: 100, y: 200 })?.id).toBe(1)
+    // Edges count as inside.
+    expect(blockForPoint(blocks, { x: 72, y: 72 })?.id).toBe(0)
+  })
+
+  it('takes the smallest of overlapping blocks', () => {
+    const blocks = boxes([0, 0, 600, 800], [72, 140, 540, 300], [100, 150, 200, 170])
+    expect(blockForPoint(blocks, { x: 150, y: 160 })?.id).toBe(2)
+    expect(blockForPoint(blocks, { x: 300, y: 250 })?.id).toBe(1)
+  })
+
+  it('finds nothing outside every block, or without blocks', () => {
+    expect(blockForPoint(boxes([72, 72, 540, 120]), { x: 50, y: 50 })).toBeNull()
+    expect(blockForPoint([], { x: 50, y: 50 })).toBeNull()
+  })
+})
 
 function block(
   lines: { x0: number; x1: number; spans: [string, string, number, number][] }[]

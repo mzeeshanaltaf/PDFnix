@@ -1,5 +1,27 @@
-import type { TextBlock } from '@/api/engine'
+import type { Rect, TextBlock } from '@/api/engine'
 import type { EditTextStyle } from '@/state/pending'
+import type { Point } from '@/viewer/geometry'
+
+function area(rect: Rect): number {
+  return (rect[2] - rect[0]) * (rect[3] - rect[1])
+}
+
+/**
+ * The block whose box contains `point` (points, displayed space); the
+ * smallest one when boxes overlap. Null if none does.
+ */
+export function blockForPoint<T extends { bbox: Rect }>(
+  blocks: readonly T[],
+  point: Point
+): T | null {
+  let best: T | null = null
+  for (const block of blocks) {
+    const [x0, y0, x1, y1] = block.bbox
+    if (point.x < x0 || point.x > x1 || point.y < y0 || point.y > y1) continue
+    if (!best || area(block.bbox) < area(best.bbox)) best = block
+  }
+  return best
+}
 
 /** The style of a text block, from its most used span. */
 export function blockStyle(block: TextBlock): { style: EditTextStyle; fontName: string } {

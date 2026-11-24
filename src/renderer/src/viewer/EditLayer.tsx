@@ -2,10 +2,10 @@ import { memo, useRef, useState } from 'react'
 import type { Rect, TextBlock } from '@/api/engine'
 import { mutate } from '@/state/edits'
 import { markArea } from '@/state/redaction'
-import { commitPending, startPending, usePending } from '@/state/pending'
+import { commitPending, startPending, startTextEdit, usePending } from '@/state/pending'
 import { useSignatures } from '@/state/signatures'
 import { isEditTool, useTools } from '@/state/tools'
-import { blockStyle } from '@/tools/blockStyle'
+import { blockForPoint } from '@/tools/blockStyle'
 import { placeImage } from '@/tools/images'
 import { engine } from '@/api/engine'
 import { getViewer } from './controller'
@@ -34,14 +34,6 @@ interface EditLayerProps {
   height: number
 }
 
-function inside(rect: Rect, point: Point): boolean {
-  return point.x >= rect[0] && point.x <= rect[2] && point.y >= rect[1] && point.y <= rect[3]
-}
-
-function area(rect: Rect): number {
-  return (rect[2] - rect[0]) * (rect[3] - rect[1])
-}
-
 /** The text block or image under a point; text first, smallest first. */
 function objectAt(
   blocks: TextBlock[],
@@ -49,14 +41,10 @@ function objectAt(
   point: Point,
   withImages: boolean
 ): { kind: 'text'; block: TextBlock } | { kind: 'image'; bbox: Rect } | null {
-  const block = blocks
-    .filter((candidate) => inside(candidate.bbox, point))
-    .sort((a, b) => area(a.bbox) - area(b.bbox))[0]
+  const block = blockForPoint(blocks, point)
   if (block) return { kind: 'text', block }
   if (!withImages) return null
-  const image = images
-    .filter((candidate) => inside(candidate.bbox, point))
-    .sort((a, b) => area(a.bbox) - area(b.bbox))[0]
+  const image = blockForPoint(images, point)
   return image ? { kind: 'image', bbox: image.bbox } : null
 }
 
@@ -314,21 +302,7 @@ export const EditLayer = memo(function EditLayer({
           return
         }
         if (hit.kind !== 'text') return
-        const { style, fontName } = blockStyle(hit.block)
-        startPending({
-          tabId,
-          page,
-          object: {
-            kind: 'editText',
-            rect: hit.block.bbox,
-            original: hit.block.text,
-            text: hit.block.text,
-            style,
-            originalStyle: style,
-            fontName,
-            rotation: hit.block.angle
-          }
-        })
+        startTextEdit(tabId, page, hit.block)
         return
       }
     }

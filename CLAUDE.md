@@ -1,6 +1,6 @@
 # PDFnix — PDF reader & editor (Windows desktop)
 
-Electron + React/TypeScript UI with a bundled Python engine (FastAPI + PyMuPDF) that does all PDF work. Built in seven phases, one phase per session.
+Electron + React/TypeScript UI with a bundled Python engine (FastAPI + PyMuPDF) that does all PDF work. Built in phases, one phase per session: phases 1–7 shipped as v0.1–0.3; phases 8–10 add a text-selection menu and a local AI assistant (LM Studio).
 
 - Plan: `docs/plan/phase-n-<title>.md` (phase 1 also holds the architecture and project-wide conventions)
 - Live status and handoff notes: `docs/plan/STATUS.md`

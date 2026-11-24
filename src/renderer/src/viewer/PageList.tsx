@@ -19,9 +19,30 @@ import {
 } from './layout'
 import { IMAGE_PRIORITY } from './pageImages'
 import { PageView } from './PageView'
-import { installSelectionHandling } from './selection'
+import { openSelectionMenuAt } from '@/tools/selectionMenuState'
+import { installSelectionHandling, selectedWordPieces } from './selection'
 import { recallViewPosition, rememberViewPosition } from './viewPositions'
 import { clampZoom, fitZoom, stepZoom, wheelZoom, type ZoomMode } from './zoom'
+
+/**
+ * Right-click with page text selected opens the selection menu at the
+ * pointer. Anywhere else (no selection, or a text box or other input) the
+ * press is left alone.
+ */
+function openMenuOnSelection(event: React.MouseEvent): void {
+  const target = event.target
+  if (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  ) {
+    return
+  }
+  if (selectedWordPieces(document.getSelection()).length === 0) return
+  event.preventDefault()
+  openSelectionMenuAt(event.clientX, event.clientY)
+}
 
 /** Pages this far outside the viewport are mounted too, so they are ready. */
 const OVERSCAN_PX = 800
@@ -447,6 +468,7 @@ export function PageList({ tab }: { tab: DocumentTab }): React.JSX.Element {
       role="region"
       aria-label={`Pages of ${tab.fileName}`}
       onScroll={sync}
+      onContextMenu={openMenuOnSelection}
       data-tab-id={tab.id}
       data-zoom={zoom}
     >

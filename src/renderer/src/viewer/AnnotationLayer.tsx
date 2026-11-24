@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import { MessageSquare, Trash2, Type } from 'lucide-react'
+import { MessageSquare, MessageSquareText, Trash2, Type } from 'lucide-react'
 import { cn } from 'cn'
 import type { Annotation, Rect } from '@/api/engine'
 import {
@@ -28,7 +28,9 @@ const EDITOR_HEIGHT = 168
 const NOTE_HALF = 9
 /** Elements of the layer (and the edit layer above) that handle the pointer themselves. */
 const OWN_CONTROLS =
-  '.pdf-annotation-toolbar, .pdf-comment-editor, .pdf-annotation-hit, .pdf-handle, .pdf-edit-layer'
+  '.pdf-annotation-toolbar, .pdf-comment-editor, .pdf-annotation-hit, .pdf-comment-marker, .pdf-handle, .pdf-edit-layer'
+/** Side of the marker shown on text markup that has a comment (CSS px). */
+const MARKER_SIZE = 18
 /** Types that can be moved and resized; notes can only be moved. */
 const RESIZABLE = new Set(['freetext', 'square', 'circle', 'line', 'ink'])
 const SHAPE_WIDTHS = [1, 2, 3, 4, 6, 8]
@@ -231,6 +233,16 @@ function CommentEditor({
     useTools.getState().setEditing(null)
   }
 
+  // Deletes the annotation together with its comment (as Acrobat does): a
+  // note, or a highlight with its comment.
+  const label = annotation.type === 'note' ? 'Delete note' : 'Delete comment and mark'
+  const remove = (): void => {
+    if (closed.current) return
+    closed.current = true
+    useTools.getState().setEditing(null)
+    void deleteAnnotation(tabId, target)
+  }
+
   const right = box.left + box.width + 8
   const left =
     right + EDITOR_WIDTH <= pageWidth ? right : clamp(box.left, 4, pageWidth - EDITOR_WIDTH - 4)
@@ -273,6 +285,15 @@ function CommentEditor({
         }}
       />
       <div className="flex justify-end gap-1.5">
+        <button
+          type="button"
+          title={label}
+          aria-label={label}
+          className="pdf-annotation-button mr-auto"
+          onClick={remove}
+        >
+          <Trash2 className="size-4" aria-hidden />
+        </button>
         <button type="button" className="pdf-editor-button" onClick={() => close(false)}>
           Cancel
         </button>
@@ -465,6 +486,33 @@ export const AnnotationLayer = memo(function AnnotationLayer({
             }
           />
         ))}
+      {annotations
+        .filter((annotation) => isMarkup(annotation) && annotation.contents.trim() !== '')
+        .map((annotation) => {
+          const line = rectToPx(quadBounds((annotation.quads ?? [])[0]), zoom)
+          const target = { annotId: annotation.annotId, page: annotation.page }
+          return (
+            <button
+              key={`comment-${annotation.annotId}`}
+              type="button"
+              className="pdf-comment-marker"
+              // Just past the end of the first line, raised a little.
+              style={{
+                left: clamp(line.left + line.width - 2, 0, pageWidth - MARKER_SIZE),
+                top: clamp(line.top - MARKER_SIZE + 4, 0, pageHeight - MARKER_SIZE),
+                borderColor: annotation.color ?? undefined
+              }}
+              title={annotation.contents}
+              aria-label={`Comment: ${annotation.contents}`}
+              data-annot-id={annotation.annotId}
+              // A press here must not start a text selection.
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => editComment(tabId, target)}
+            >
+              <MessageSquareText className="size-3" strokeWidth={2} aria-hidden />
+            </button>
+          )
+        })}
       {selectedBoxes.map((box, index) => (
         <div key={index} className="pdf-annotation-selected" style={box} />
       ))}

@@ -24,15 +24,15 @@ To make PDFnix open PDF files when you double-click them: right-click any PDF â†
 
 ## Comments and markup
 
-- Select text, then press **H** (highlight), **U** (underline) or **K** (strikeout), or use the small toolbar that appears over the selection.
+- Select text, then press **H** (highlight), **U** (underline) or **K** (strikeout), or use the menu that appears under the selection (right-click selected text to open it again). It also has Comment, Redact, a colour choice, **Copy text** and **Edit text**, which opens the text editor on the paragraph you selected.
 - **N** places a sticky note: click on the page and type. Any comment is saved with Ctrl+Enter.
-- Click a highlight or note to change its colour, add a comment or delete it. All comments are listed in the Comments panel.
+- Click a highlight or note to change its colour, add a comment or delete it. Text with a comment shows a small comment marker at its end; click it to read or edit the comment. The comment pop-up's bin button deletes the note, or the highlight together with its comment. All comments are listed in the Comments panel.
 - Every change can be undone (Ctrl+Z) and redone (Ctrl+Y).
 
 ## Adding and editing content
 
 - **T** adds a text box, **S** draws rectangles, ellipses, lines and arrows, **D** draws freehand, **I** adds a picture (or paste one with Ctrl+V).
-- **E** edits the page's own text: click a paragraph, change it, click elsewhere.
+- **E** edits the page's own text: click a paragraph, change it, click elsewhere. Lines you did not change stay exactly as they were, and changed lines keep their bold, italic and coloured words. Changing the font, size or colour in the bar above the editor applies to the whole paragraph.
 - **X** deletes a paragraph or a picture from the page.
 - **Sign** (toolbar) creates a signature or initials (draw, type or upload a scan) and places it. Saved signatures are kept for next time.
 

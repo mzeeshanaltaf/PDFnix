@@ -18,13 +18,17 @@ import {
   type Rect,
   type Rotation,
   type TextAlign,
+  type TextBlock,
   type TextReplaceResult
 } from '../api/engine'
+import { blockForPoint, blockStyle } from '../tools/blockStyle'
 import { pointsBounds } from '../viewer/editGeometry'
 import type { Point } from '../viewer/geometry'
+import { pageBlocks } from '../viewer/pageText'
+import { clearTextSelection, selectedWordPieces } from '../viewer/selection'
 import { mutate, selectAnnotation } from './edits'
 import { useSettings } from './settings'
-import { useTabs } from './tabs'
+import { getTab, useTabs } from './tabs'
 import {
   DEFAULT_TEXT,
   useTools,
@@ -338,6 +342,57 @@ export function installPendingCommits(): () => void {
     stopTools()
     stopTabs()
   }
+}
+
+/** Opens an editor over one of the page's own text blocks (Edit text). */
+export function startTextEdit(tabId: string, page: number, block: TextBlock): void {
+  const { style, fontName } = blockStyle(block)
+  startPending({
+    tabId,
+    page,
+    object: {
+      kind: 'editText',
+      rect: block.bbox,
+      original: block.text,
+      text: block.text,
+      style,
+      originalStyle: style,
+      fontName,
+      rotation: block.angle
+    }
+  })
+}
+
+/**
+ * Edit text, started from a text selection: opens the editor over the block
+ * that holds the start of the selection, with the Edit text tool armed. If
+ * no block holds it (text of an annotation, say), says so and leaves the
+ * selection as it is.
+ */
+export async function editSelectedText(tabId: string): Promise<void> {
+  const piece = selectedWordPieces(document.getSelection())[0]
+  const tab = getTab(tabId)
+  if (!piece || !tab) return
+  const { page, bbox } = piece
+  let blocks: TextBlock[]
+  try {
+    const revision = tab.pageRevisions[page] ?? tab.revision
+    blocks = (await pageBlocks.load(tab.docId, page, revision)).blocks
+  } catch {
+    toast.error('Could not read the text of this page')
+    return
+  }
+  // The tab may have been closed while the blocks were loading.
+  if (!getTab(tabId)) return
+  const centre = { x: (bbox[0] + bbox[2]) / 2, y: (bbox[1] + bbox[3]) / 2 }
+  const block = blockForPoint(blocks, centre)
+  if (!block) {
+    toast.info("This text can't be edited here")
+    return
+  }
+  useTools.getState().setActiveTool('editText')
+  clearTextSelection()
+  startTextEdit(tabId, page, block)
 }
 
 /** Opens an existing text box for typing, in the edit overlay. */
