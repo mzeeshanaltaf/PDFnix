@@ -11,6 +11,16 @@ import {
   type DefaultZoom,
   type LayoutMode
 } from '../shared/api'
+import {
+  AI_LIMITS,
+  AI_MAX_CONTEXT,
+  DEFAULT_AI_SERVER_URL,
+  isAiContextMode,
+  normalizeServerUrl,
+  type AiContextMode
+} from '../shared/ai'
+
+export { normalizeServerUrl }
 
 /** 100 %, as documents opened before the setting existed. */
 export const DEFAULT_ZOOM: DefaultZoom = 'actual-size'
@@ -37,6 +47,27 @@ export function ocrLanguagesOrDefault(value: unknown): string[] {
     )
   ].slice(0, MAX_OCR_LANGUAGES)
   return codes.length > 0 ? codes : [...DEFAULT_OCR_LANGUAGES]
+}
+
+export function serverUrlOrDefault(value: unknown): string {
+  return normalizeServerUrl(value) ?? DEFAULT_AI_SERVER_URL
+}
+
+/** A model key as LM Studio names models; null for none or anything else. */
+export function aiModelOrNull(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const key = value.trim()
+  return key.length >= 1 && key.length <= AI_LIMITS.model ? key : null
+}
+
+export function aiContextOrDefault(value: unknown): AiContextMode {
+  return isAiContextMode(value) ? value : 'page'
+}
+
+/** Whole tokens within 4,096–131,072; the default for anything that is not a number. */
+export function aiMaxContextOrDefault(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return AI_MAX_CONTEXT.default
+  return Math.min(AI_MAX_CONTEXT.max, Math.max(AI_MAX_CONTEXT.min, Math.round(value)))
 }
 
 /** Whole minutes within the allowed range; the default for anything else. */

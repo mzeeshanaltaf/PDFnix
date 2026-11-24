@@ -113,9 +113,9 @@ The renderer never passes a URL. Main reads the server URL from settings, so a c
 - `estimateTokens(text)` = `ceil(chars / 3.5)`.
 - `ANSWER_RESERVE = 1024` tokens.
 - **`chooseContextLength({ neededTokens, loadedContext, maxContext, cap })`:**
-  - If the model is loaded and `loadedContext ≥ needed`, return `undefined`: don't ask, so the model isn't reloaded.
+  - If the model is loaded and `loadedContext ≥ needed`, return `loadedContext` (changed after task 1, which first said `undefined`): LM Studio answers with the instance of exactly that size, so nothing is reloaded, and the right instance is used when several copies are loaded.
   - Otherwise return `needed` rounded up to a multiple of 4,096, at least 4,096, at most `min(maxContext ?? cap, cap)`.
-  - This is the rule if task 1 shows that `/chat`'s `context_length` reloads or loads at that size. If it is ignored for a loaded model, task 3 loads explicitly instead (see there), and this function still decides the size.
+  - Task 1 showed that `/chat`'s `context_length` loads a new instance at that size whenever no loaded instance has exactly that size (STATUS.md, Verified facts).
 - **`excerptCharBudget({ contextTokens, otherTokens })`:** how many characters of document text fit next to the system prompt, the question and the answer reserve.
 
 ### 3. Client: `src/main/ai.ts`, with parsing in `src/main/ai-protocol.ts`
@@ -149,7 +149,8 @@ The renderer never passes a URL. Main reads the server URL from settings, so a c
     - none overall (a 26B model can be slow);
     - 120 s without any event before the first `message.delta` (this covers loading a model);
     - 60 s between events after that.
-- If task 1 shows that `context_length` on `/chat` is ignored for a loaded model, `chat` first calls `/api/v1/models/load` (and unloads the smaller instance if that is needed and possible) whenever `contextLength` is set. It emits `status: loading` meanwhile.
+- **As built after task 1:** `context_length` on `/chat` is honoured, but LM Studio keeps a manually loaded smaller instance beside the new one (two 18 GB copies), and `/api/v1/models/load` always adds another copy. So `chat` never calls `/load`. When `contextLength` is set and no loaded instance of the model has exactly that size, it first unloads the model's smaller instances (`POST /api/v1/models/unload {instance_id}`), emitting `status: loading`, and lets `/chat` load the model at the new size.
+- A stream that ends without `chat.end` (what LM Studio does when the prompt does not fit the loaded context) ends with the error code `stream_ended`; 120/60 s of silence ends with `timeout`.
 - `cancel(requestId)` aborts through an `AbortController`. All of a window's requests are aborted when it closes or reloads.
 
 ### 4. IPC

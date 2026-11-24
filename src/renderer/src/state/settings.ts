@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { RECOVERY_MINUTES, type ThemeSource, type UserSettings } from '../../../shared/api'
+import { AI_MAX_CONTEXT, DEFAULT_AI_SERVER_URL } from '../../../shared/ai'
 import { engine } from '@/api/engine'
 import { setDefaultView } from './tabs'
 import { DEFAULT_COLORS, useTools } from './tools'
@@ -18,7 +19,11 @@ const DEFAULT_SETTINGS: UserSettings = {
   defaultLayout: 'continuous',
   ocrLanguages: ['eng'],
   recoveryMinutes: RECOVERY_MINUTES.default,
-  scanCodes: true
+  scanCodes: true,
+  aiServerUrl: DEFAULT_AI_SERVER_URL,
+  aiModel: null,
+  aiContext: 'page',
+  aiMaxContext: AI_MAX_CONTEXT.default
 }
 
 function applyUserSettings(settings: UserSettings): void {
@@ -30,7 +35,11 @@ function applyUserSettings(settings: UserSettings): void {
     defaultLayout: settings.defaultLayout,
     ocrLanguages: settings.ocrLanguages,
     recoveryMinutes: settings.recoveryMinutes,
-    scanCodes: settings.scanCodes
+    scanCodes: settings.scanCodes,
+    aiServerUrl: settings.aiServerUrl,
+    aiModel: settings.aiModel,
+    aiContext: settings.aiContext,
+    aiMaxContext: settings.aiMaxContext
   })
   setDefaultView(settings.defaultZoom, settings.defaultLayout)
   // The highlight tool starts with the default colour; a colour picked on

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, type WebContents } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import {
@@ -11,7 +11,10 @@ import {
   type MenuState,
   type UnsavedChoice
 } from '../shared/api'
+import type { AiEventMessage } from '../shared/ai'
 import { externalLinkTarget } from '../shared/links'
+import { createAiClient } from './ai'
+import { parseChatRequest } from './ai-protocol'
 import type { EngineManager } from './engine'
 import {
   addRecent,
@@ -28,7 +31,7 @@ import {
 } from './files'
 import { setMenuState } from './menu'
 import { listPrinters, printFile } from './print'
-import { getUserSettings, setUserSettings } from './settings'
+import { getAiServerUrl, getUserSettings, setUserSettings } from './settings'
 import {
   addSignature,
   listSignatures,
@@ -47,6 +50,24 @@ function noticesPath(): string {
     ? join(process.resourcesPath, 'licenses')
     : join(app.getAppPath(), 'resources', 'licenses')
   return join(folder, 'THIRD-PARTY-NOTICES.txt')
+}
+
+// The address is read from the settings for every request, never taken from the renderer.
+const ai = createAiClient({ serverUrl: getAiServerUrl })
+
+/** Windows whose AI requests are stopped when they close or load a new page. */
+const aiOwners = new WeakSet<WebContents>()
+
+function watchAiOwner(contents: WebContents): string {
+  const owner = String(contents.id)
+  if (!aiOwners.has(contents)) {
+    aiOwners.add(contents)
+    contents.on('destroyed', () => ai.cancelOwner(owner))
+    contents.on('did-start-navigation', (details) => {
+      if (details.isMainFrame && !details.isSameDocument) ai.cancelOwner(owner)
+    })
+  }
+  return owner
 }
 
 function text(value: unknown): string | null {
@@ -158,6 +179,29 @@ export function registerIpc(engine: EngineManager, onConfirmClose: () => void): 
 
   ipcMain.handle(IPC.printPrinters, () => listPrinters())
   ipcMain.handle(IPC.printPrint, (_event, request: unknown) => printFile(request))
+
+  ipcMain.handle(IPC.aiListModels, () => ai.listModels())
+  ipcMain.handle(IPC.aiChat, (event, value: unknown) => {
+    const request = parseChatRequest(value)
+    const sender = event.sender
+    const owner = watchAiOwner(sender)
+    return ai.chat(
+      request,
+      (aiEvent) => {
+        if (sender.isDestroyed()) return
+        const message: AiEventMessage = { ...aiEvent, requestId: request.requestId }
+        sender.send(IPC.aiEvent, message)
+      },
+      owner
+    )
+  })
+  ipcMain.on(IPC.aiCancel, (event, value: unknown) => {
+    const requestId =
+      typeof value === 'object' && value !== null
+        ? (value as { requestId?: unknown }).requestId
+        : undefined
+    if (typeof requestId === 'string') ai.cancel(requestId, String(event.sender.id))
+  })
 
   ipcMain.handle(IPC.signaturesList, () => listSignatures())
   ipcMain.handle(IPC.signaturesAdd, (_event, signature: unknown) => addSignature(signature))

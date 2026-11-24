@@ -1,5 +1,13 @@
-import { useState } from 'react'
-import { Languages } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { cn } from 'cn'
+import { Languages, LoaderCircle, PlugZap } from 'lucide-react'
+import {
+  AI_MAX_CONTEXT_CHOICES,
+  DEFAULT_AI_SERVER_URL,
+  normalizeServerUrl,
+  type AiContextMode,
+  type AiServerInfo
+} from '../../../shared/ai'
 import {
   MAX_OCR_LANGUAGES,
   RECOVERY_MINUTES,
@@ -20,6 +28,7 @@ import { Input } from '@/components/ui/input'
 import { showOcrLanguages, showPreferences, useDialogs } from '@/state/dialogs'
 import { useSettings } from '@/state/settings'
 import { PALETTE } from '@/state/tools'
+import { connectionSummary, modelOptionLabel, shortTokens } from './aiSettings'
 import { useInstalledLanguages } from './useInstalledLanguages'
 
 const THEMES: { value: ThemeSource; label: string }[] = [
@@ -59,6 +68,182 @@ function Section({
 
 const SELECT = 'h-8 rounded-md border bg-background px-2 text-[13px]'
 
+interface AiChoices {
+  url: string
+  model: string | null
+  context: AiContextMode
+  maxContext: number
+}
+
+/** The "AI assistant (LM Studio)" section: server address, test, model and context. */
+function AiSection({
+  value,
+  onChange
+}: {
+  value: AiChoices
+  onChange: (patch: Partial<AiChoices>) => void
+}): React.JSX.Element {
+  // The first test runs with the saved address as the dialog opens, to fill
+  // the model list.
+  const [testing, setTesting] = useState(true)
+  const [info, setInfo] = useState<AiServerInfo | null>(null)
+  const urlOk = normalizeServerUrl(value.url) !== null
+
+  useEffect(() => {
+    let live = true
+    void window.api.ai.listModels().then((result) => {
+      if (!live) return
+      setInfo(result)
+      setTesting(false)
+    })
+    return () => {
+      live = false
+    }
+  }, [])
+
+  const test = async (): Promise<void> => {
+    const url = normalizeServerUrl(value.url)
+    if (!url) return
+    setTesting(true)
+    // Main only ever talks to the saved address, so testing saves it.
+    if (url !== useSettings.getState().aiServerUrl) {
+      await useSettings.getState().update({ aiServerUrl: url })
+    }
+    setInfo(await window.api.ai.listModels())
+    setTesting(false)
+  }
+
+  const models = info?.models ?? []
+  const listed = value.model === null || models.some((model) => model.key === value.model)
+
+  return (
+    <Section title="AI assistant (LM Studio)">
+      <div className="grid gap-1.5">
+        <label htmlFor="pref-ai-url" className="text-[13px] font-medium">
+          Server address
+        </label>
+        <div className="flex gap-2">
+          <Input
+            id="pref-ai-url"
+            value={value.url}
+            spellCheck={false}
+            onChange={(event) => onChange({ url: event.target.value })}
+            className="h-8 select-text"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={value.url === DEFAULT_AI_SERVER_URL}
+            onClick={() => onChange({ url: DEFAULT_AI_SERVER_URL })}
+          >
+            Reset
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!urlOk || testing}
+            onClick={() => void test()}
+          >
+            {testing ? (
+              <LoaderCircle className="animate-spin" aria-hidden />
+            ) : (
+              <PlugZap aria-hidden />
+            )}
+            Test connection
+          </Button>
+        </div>
+        {!urlOk ? (
+          <p className="text-xs text-destructive">
+            Enter an address starting with http:// or https://, such as {DEFAULT_AI_SERVER_URL}.
+          </p>
+        ) : (
+          <p
+            role="status"
+            className={cn('text-xs', info?.error ? 'text-destructive' : 'text-muted-foreground')}
+          >
+            {testing ? 'Asking LM Studio…' : info ? connectionSummary(info) : ''}
+          </p>
+        )}
+      </div>
+
+      <label className="flex flex-wrap items-center gap-2 text-[13px]">
+        Model
+        <select
+          className={cn(SELECT, 'max-w-80')}
+          value={value.model ?? ''}
+          onChange={(event) => onChange({ model: event.target.value || null })}
+        >
+          <option value="">Automatic (a loaded model first)</option>
+          {models.map((model) => (
+            <option key={model.key} value={model.key}>
+              {modelOptionLabel(model)}
+            </option>
+          ))}
+          {!listed && value.model !== null && (
+            <option value={value.model}>
+              {value.model}
+              {info?.reachable && !info.error ? ' (not in LM Studio)' : ''}
+            </option>
+          )}
+        </select>
+      </label>
+
+      <div
+        role="radiogroup"
+        aria-label="Context sent to the model"
+        className="flex flex-wrap items-center gap-4 text-[13px]"
+      >
+        <span>Context sent to the model:</span>
+        {AI_CONTEXTS.map((option) => (
+          <label key={option.value} className="flex items-center gap-1.5">
+            <input
+              type="radio"
+              name="settings-ai-context"
+              checked={value.context === option.value}
+              onChange={() => onChange({ context: option.value })}
+            />
+            {option.label}
+          </label>
+        ))}
+      </div>
+
+      <div className="grid gap-1">
+        <label className="flex items-center gap-2 text-[13px]">
+          Largest context
+          <select
+            className={SELECT}
+            value={value.maxContext}
+            onChange={(event) => onChange({ maxContext: Number(event.target.value) })}
+          >
+            {maxContextChoices(value.maxContext).map((tokens) => (
+              <option key={tokens} value={tokens}>
+                {shortTokens(tokens)} tokens
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-xs text-muted-foreground">
+          Larger lets more of a long document in, but uses more memory and makes LM Studio reload
+          the model.
+        </p>
+      </div>
+    </Section>
+  )
+}
+
+const AI_CONTEXTS: { value: AiContextMode; label: string }[] = [
+  { value: 'page', label: 'This page' },
+  { value: 'document', label: 'Whole document' }
+]
+
+/** The offered sizes, plus the saved one if it is not among them. */
+function maxContextChoices(current: number): number[] {
+  const choices: number[] = [...AI_MAX_CONTEXT_CHOICES]
+  return choices.includes(current) ? choices : [...choices, current].sort((a, b) => a - b)
+}
+
 function SettingsForm(): React.JSX.Element {
   const saved = useSettings()
   const [theme, setTheme] = useState(saved.theme)
@@ -69,7 +254,14 @@ function SettingsForm(): React.JSX.Element {
   const [ocr, setOcr] = useState(saved.ocrLanguages)
   const [minutes, setMinutes] = useState(String(saved.recoveryMinutes))
   const [scanCodes, setScanCodes] = useState(saved.scanCodes)
+  const [ai, setAi] = useState<AiChoices>({
+    url: saved.aiServerUrl,
+    model: saved.aiModel,
+    context: saved.aiContext,
+    maxContext: saved.aiMaxContext
+  })
   const { languages, error: languageError } = useInstalledLanguages()
+  const aiUrl = normalizeServerUrl(ai.url)
 
   const minutesValue = Number(minutes)
   const minutesOk =
@@ -94,7 +286,7 @@ function SettingsForm(): React.JSX.Element {
       className="grid gap-5"
       onSubmit={(event) => {
         event.preventDefault()
-        if (!minutesOk || chosenOcr.length === 0) return
+        if (!minutesOk || chosenOcr.length === 0 || !aiUrl) return
         if (theme !== saved.theme) void saved.setTheme(theme)
         void saved.update({
           authorName: author,
@@ -103,7 +295,11 @@ function SettingsForm(): React.JSX.Element {
           defaultLayout: layout,
           ocrLanguages: chosenOcr,
           recoveryMinutes: minutesValue,
-          scanCodes
+          scanCodes,
+          aiServerUrl: aiUrl,
+          aiModel: ai.model,
+          aiContext: ai.context,
+          aiMaxContext: ai.maxContext
         })
         showPreferences(false)
       }}
@@ -250,6 +446,11 @@ function SettingsForm(): React.JSX.Element {
           )}
         </Section>
 
+        <AiSection
+          value={ai}
+          onChange={(patch) => setAi((current) => ({ ...current, ...patch }))}
+        />
+
         <Section title="Recovery">
           <label className="flex flex-wrap items-center gap-2 text-[13px]">
             Keep a recovery copy of unsaved changes after
@@ -280,7 +481,7 @@ function SettingsForm(): React.JSX.Element {
         <Button type="button" variant="outline" size="sm" onClick={() => showPreferences(false)}>
           Cancel
         </Button>
-        <Button type="submit" size="sm" disabled={!minutesOk || chosenOcr.length === 0}>
+        <Button type="submit" size="sm" disabled={!minutesOk || chosenOcr.length === 0 || !aiUrl}>
           Save
         </Button>
       </DialogFooter>

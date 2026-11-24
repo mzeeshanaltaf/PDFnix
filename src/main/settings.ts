@@ -9,7 +9,13 @@ import {
   type ThemeSource,
   type UserSettings
 } from '../shared/api'
+import { AI_MAX_CONTEXT, DEFAULT_AI_SERVER_URL, type AiContextMode } from '../shared/ai'
 import {
+  aiContextOrDefault,
+  aiMaxContextOrDefault,
+  aiModelOrNull,
+  normalizeServerUrl,
+  serverUrlOrDefault,
   DEFAULT_LAYOUT,
   DEFAULT_OCR_LANGUAGES,
   DEFAULT_ZOOM,
@@ -31,6 +37,10 @@ interface SettingsSchema {
   ocrLanguages: string[]
   recoveryMinutes: number
   scanCodes: boolean
+  aiServerUrl: string
+  aiModel: string | null
+  aiContext: AiContextMode
+  aiMaxContext: number
 }
 
 export const DEFAULT_HIGHLIGHT_COLOR = '#ffd54f'
@@ -45,7 +55,11 @@ const DEFAULTS: SettingsSchema = {
   defaultLayout: DEFAULT_LAYOUT,
   ocrLanguages: DEFAULT_OCR_LANGUAGES,
   recoveryMinutes: RECOVERY_MINUTES.default,
-  scanCodes: true
+  scanCodes: true,
+  aiServerUrl: DEFAULT_AI_SERVER_URL,
+  aiModel: null,
+  aiContext: 'page',
+  aiMaxContext: AI_MAX_CONTEXT.default
 }
 
 let store: Store<SettingsSchema> | null = null
@@ -97,7 +111,11 @@ export function getUserSettings(): UserSettings {
     defaultLayout: layoutOrDefault(getStore().get('defaultLayout')),
     ocrLanguages: ocrLanguagesOrDefault(getStore().get('ocrLanguages')),
     recoveryMinutes: recoveryMinutesOrDefault(getStore().get('recoveryMinutes')),
-    scanCodes: getStore().get('scanCodes') !== false
+    scanCodes: getStore().get('scanCodes') !== false,
+    aiServerUrl: getAiServerUrl(),
+    aiModel: aiModelOrNull(getStore().get('aiModel')),
+    aiContext: aiContextOrDefault(getStore().get('aiContext')),
+    aiMaxContext: aiMaxContextOrDefault(getStore().get('aiMaxContext'))
   }
 }
 
@@ -128,7 +146,24 @@ export function setUserSettings(patch: unknown): UserSettings {
   if (typeof candidate.scanCodes === 'boolean') {
     getStore().set('scanCodes', candidate.scanCodes)
   }
+  // An address that is not a valid URL is ignored, so a typo cannot lose the old one.
+  const serverUrl = normalizeServerUrl(candidate.aiServerUrl)
+  if (serverUrl) getStore().set('aiServerUrl', serverUrl)
+  // null clears the choice; an invalid key is ignored.
+  const model = aiModelOrNull(candidate.aiModel)
+  if (model !== null || candidate.aiModel === null) getStore().set('aiModel', model)
+  if (candidate.aiContext !== undefined) {
+    getStore().set('aiContext', aiContextOrDefault(candidate.aiContext))
+  }
+  if (candidate.aiMaxContext !== undefined) {
+    getStore().set('aiMaxContext', aiMaxContextOrDefault(candidate.aiMaxContext))
+  }
   return getUserSettings()
+}
+
+/** LM Studio's address, for the AI client in main. */
+export function getAiServerUrl(): string {
+  return serverUrlOrDefault(getStore().get('aiServerUrl'))
 }
 
 /** Seconds an unsaved change may go without a recovery copy (for the engine). */

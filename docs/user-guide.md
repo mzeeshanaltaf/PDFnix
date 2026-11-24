@@ -74,6 +74,8 @@ When you open a document, PDFnix looks for QR codes and barcodes in the backgrou
 
 **File → Settings** (Ctrl+,) sets the theme (same as Windows, light or dark), how documents open (zoom and page layout), your name for comments, the default highlight colour, the OCR languages to start with, whether to look for QR codes and barcodes automatically, and how often recovery copies are made.
 
+The **AI assistant (LM Studio)** section prepares the AI assistant, which uses LM Studio (version 0.4 or newer) running on your computer; nothing is sent to the internet. Start LM Studio's server (Developer → Start server, or `lms server start`), then press **Test connection**: it saves the server address and lists your models, marking the ones already loaded. Choose the model, whether the assistant reads the current page or the whole document, and the largest context to ask for. A larger context lets more of a long document in, but uses more memory and makes LM Studio reload the model.
+
 **Help → Keyboard Shortcuts** (Ctrl+/ or F1) lists every shortcut.
 
 ## Uninstalling

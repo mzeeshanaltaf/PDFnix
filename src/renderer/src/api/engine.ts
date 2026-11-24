@@ -327,6 +327,15 @@ export interface PageLinks {
   links: PageLink[]
 }
 
+/** A range of pages as plain text (page content only, no annotations). */
+export interface PlainText {
+  /** In order, from the first page asked for; fewer when `truncated`. */
+  pages: { index: number; text: string }[]
+  pageCount: number
+  /** More pages were asked for than fit in `maxChars`. */
+  truncated: boolean
+}
+
 /** A QR code or barcode found on a page. */
 export interface PageCode {
   /** Readable format name, e.g. "QR Code", "Code 128", "Data Matrix". */
@@ -821,6 +830,23 @@ export const engine = {
 
   pageLinks: (docId: string, page: number, signal?: AbortSignal): Promise<PageLinks> =>
     request<PageLinks>('GET', `${doc(docId)}/pages/${page}/links`, { signal }),
+
+  /**
+   * Pages `from`..`to` (0-based, inclusive; `to` defaults to the last page)
+   * as plain text. Stops at a page boundary before `maxChars` would be
+   * exceeded; the first page is always included, cut if necessary.
+   */
+  plainText: (
+    docId: string,
+    options: { from?: number; to?: number; maxChars?: number; signal?: AbortSignal } = {}
+  ): Promise<PlainText> => {
+    const query = new URLSearchParams({ from: String(options.from ?? 0) })
+    if (options.to !== undefined) query.set('to', String(options.to))
+    if (options.maxChars !== undefined) query.set('maxChars', String(Math.floor(options.maxChars)))
+    return request<PlainText>('GET', `${doc(docId)}/plain-text?${query}`, {
+      signal: options.signal
+    })
+  },
 
   pageCodes: (docId: string, page: number, signal?: AbortSignal): Promise<PageCodes> =>
     request<PageCodes>('GET', `${doc(docId)}/pages/${page}/codes`, { signal }),

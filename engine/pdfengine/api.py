@@ -33,6 +33,8 @@ from .fonts import list_fonts
 from .info import document_info, document_outline
 from .links import page_links
 from .pages import rotate_pages
+from .plaintext import MAX_CHARS as MAX_PLAIN_TEXT
+from .plaintext import plain_text
 from .recovery import RecoveryStore
 from .render import ImageFormat, render_page
 from .save import save_session
@@ -393,6 +395,15 @@ def build_router(sessions: SessionRegistry, recovery: RecoveryStore) -> APIRoute
         from .codes import page_codes
 
         return page_codes(sessions.get(doc_id), index)
+
+    @router.get("/{doc_id}/plain-text")
+    def plain_text_route(
+        doc_id: str,
+        first: Annotated[int, Query(alias="from")] = 0,
+        last: Annotated[int | None, Query(alias="to")] = None,
+        max_chars: Annotated[int, Query(alias="maxChars")] = MAX_PLAIN_TEXT,
+    ) -> dict[str, Any]:
+        return plain_text(sessions.get(doc_id), first, last, max_chars)
 
     @router.get("/{doc_id}/outline")
     def outline(doc_id: str) -> list[dict[str, Any]]:

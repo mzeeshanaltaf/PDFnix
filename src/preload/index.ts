@@ -8,6 +8,7 @@ import {
   type ThemeSource,
   type Unsubscribe
 } from '../shared/api'
+import type { AiEventMessage } from '../shared/ai'
 
 function subscribe<T>(channel: string, listener: (value: T) => void): Unsubscribe {
   const handler = (_event: IpcRendererEvent, value: T): void => listener(value)
@@ -75,6 +76,12 @@ const api: Api = {
   print: {
     printers: () => ipcRenderer.invoke(IPC.printPrinters),
     print: (request) => ipcRenderer.invoke(IPC.printPrint, request)
+  },
+  ai: {
+    listModels: () => ipcRenderer.invoke(IPC.aiListModels),
+    chat: (request) => ipcRenderer.invoke(IPC.aiChat, request),
+    cancel: (requestId) => ipcRenderer.send(IPC.aiCancel, { requestId }),
+    onEvent: (listener) => subscribe<AiEventMessage>(IPC.aiEvent, listener)
   },
   signatures: {
     list: () => ipcRenderer.invoke(IPC.signaturesList),

@@ -48,7 +48,7 @@ A zustand store keyed by tab id. It lives in memory only. Drop a tab's entry whe
   - `{ kind: 'user', action: 'simplify'|'define'|'ask', question?, selection?, page }`;
   - `{ kind: 'assistant', text, thinking, status?, error?, cancelled? }`, where `status` is `{ stage: 'loading'|'reading', progress }`;
   - `{ kind: 'divider', label }`, e.g. "New conversation · Whole document · gemma-4".
-- `conversation`: `{ responseId, model, contextMode, revision } | null`. The server-side thread that follow-up questions continue.
+- `conversation`: `{ responseId, model, contextMode, contextLength, revision } | null`. The server-side thread that follow-up questions continue. `contextLength` is the size the conversation started with (phase 9: LM Studio answers with the loaded instance of exactly the requested size, so sending it again keeps follow-ups on the same instance when several copies are loaded).
 - `streaming`, `requestId`.
 - `contextMode`, starting from the `aiContext` setting.
 - `contextNote`, e.g. "Pages 1–12 of 40 included" or "This page has no text".
@@ -65,7 +65,7 @@ A zustand store keyed by tab id. It lives in memory only. Drop a tab's entry whe
    - `define` → `Define ${selection}`
    - `ask` → `${question}`, followed by `\n\nSelected text:\n"""\n${selection}\n"""` when there is a selection
 
-3. **Continue or start a conversation.** Continue (send `previousResponseId`, no system prompt, no new excerpt) only when all of these hold:
+3. **Continue or start a conversation.** Continue (send `previousResponseId` and the conversation's `contextLength`, no system prompt, no new excerpt) only when all of these hold:
    - `conversation` exists;
    - its model and context mode are the current ones;
    - for page mode, the page is the same;
@@ -90,14 +90,15 @@ A zustand store keyed by tab id. It lives in memory only. Drop a tab's entry whe
      - say so when the excerpt doesn't contain the answer.
 
      The excerpt follows, labelled with its 1-based page numbers.
-   - `contextLength` = `chooseContextLength({ neededTokens: estimate(system + input) + ANSWER_RESERVE, loadedContext, maxContext, cap })`.
+   - `contextLength` = `chooseContextLength({ neededTokens: estimate(system + input) + ANSWER_RESERVE, loadedContext, maxContext, cap })`. It always returns a number: the loaded size when that is enough (nothing reloads), else a new size (phase 9's client then unloads the model's smaller instances and LM Studio loads it at that size).
+   - `reasoning`: send `'off'` when the model's `reasoningOptions` include it (phase 9: gemma-4 with reasoning on spent 37 s and 1,628 tokens thinking before a five-word answer); otherwise leave it out.
 
 5. **Send** with `ai.chat`, then handle the events:
    - `status`: shown as "Loading gemma-4… 40%" / "Reading the document… 70%";
    - `thinking`: shows "Thinking…" (the reasoning text is not shown);
    - `delta`: appends to the answer;
    - `done`: stores `responseId` in `conversation`;
-   - `error`: shows the friendly text. On `conversation_expired` (LM Studio restarted), clear `conversation` and retry once as a new conversation, with a divider.
+   - `error`: shows the friendly text. On `conversation_expired` (the stored response is gone: LM Studio deletes them after 30 days; a server restart keeps them), clear `conversation` and retry once as a new conversation, with a divider. Do the same on `stream_ended` in a continued conversation: LM Studio ends the stream without a word when the conversation has outgrown the context.
 
 6. Asking while an answer is still streaming cancels that answer first.
 
@@ -188,7 +189,7 @@ Register a section through phase 8's extension point, from a module `App.tsx` im
   - deltas accumulate;
   - status and thinking states;
   - `responseId` is stored and sent as `previousResponseId` on the follow-up, with no system prompt;
-  - `conversation_expired` retries once as a new conversation;
+  - `conversation_expired` (and `stream_ended` in a continued conversation) retries once as a new conversation;
   - error;
   - cancel;
   - a new question cancels the running one;

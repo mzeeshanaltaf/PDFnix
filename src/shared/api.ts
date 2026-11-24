@@ -3,6 +3,8 @@
  * This file must stay free of runtime imports from Electron or Node.
  */
 
+import type { AiChatRequest, AiContextMode, AiEvent, AiEventMessage, AiServerInfo } from './ai'
+
 export type ThemeSource = 'system' | 'light' | 'dark'
 
 export const THEME_SOURCES: readonly ThemeSource[] = ['system', 'light', 'dark']
@@ -190,6 +192,14 @@ export interface UserSettings {
   recoveryMinutes: number
   /** Look for QR codes and barcodes in the background when a document opens. */
   scanCodes: boolean
+  /** LM Studio's server address (http/https, no trailing `/`). */
+  aiServerUrl: string
+  /** The LM Studio model key the assistant uses; null until one is chosen. */
+  aiModel: string | null
+  /** What the assistant is given as context: the current page or the whole document. */
+  aiContext: AiContextMode
+  /** The largest context the app asks LM Studio for, in tokens (4,096–131,072). */
+  aiMaxContext: number
 }
 
 export type DefaultZoom = 'fit-width' | 'fit-page' | 'actual-size'
@@ -367,6 +377,24 @@ export interface Api {
     /** Prints the file and then deletes it. Rejects with a readable message. */
     print(request: PrintRequest): Promise<void>
   }
+  /**
+   * The AI assistant's backend: the user's LM Studio server, reached by main
+   * at the address in the settings (`aiServerUrl`).
+   */
+  ai: {
+    /** Whether LM Studio answers, and its chat models. Gives up after about 1.5 s. */
+    listModels(): Promise<AiServerInfo>
+    /**
+     * Streams an answer as `onEvent` events tagged with `request.requestId`,
+     * ending with exactly one `done` or `error` event. Resolves with that
+     * terminal event once the stream has ended. Rejects only for an invalid
+     * request.
+     */
+    chat(request: AiChatRequest): Promise<AiEvent>
+    /** Stops a running request; it then ends with `done` and `cancelled: true`. */
+    cancel(requestId: string): void
+    onEvent(listener: (event: AiEventMessage) => void): Unsubscribe
+  }
   /** The signature and initials library, stored by main in the app-data folder. */
   signatures: {
     list(): Promise<SignatureEntry[]>
@@ -415,5 +443,9 @@ export const IPC = {
   signaturesRemove: 'signatures:remove',
   signaturesSetDefault: 'signatures:setDefault',
   printPrinters: 'print:printers',
-  printPrint: 'print:print'
+  printPrint: 'print:print',
+  aiListModels: 'ai:listModels',
+  aiChat: 'ai:chat',
+  aiCancel: 'ai:cancel',
+  aiEvent: 'ai:event'
 } as const
