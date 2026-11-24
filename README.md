@@ -9,6 +9,7 @@ What it does:
 - **Edit**: replace text in place, add and delete pictures, signatures and initials (drawn, typed or scanned).
 - **Pages and documents**: reorder, insert, delete, rotate, extract, split, merge; fill and flatten forms; redact; watermarks, headers and footers.
 - **Process**: compress, password protection, OCR (English included, more languages downloadable), PDF to Word / pictures / text, pictures to PDF, Word to PDF (with Microsoft Word or LibreOffice), printing.
+- **AI assistant**: Simplify, Define and questions about the page or the whole document, answered by a model running on your own computer in [LM Studio](https://lmstudio.ai/).
 
 A short guide for people using the app is in [docs/user-guide.md](docs/user-guide.md). The plan the app was built from is in [docs/plan](docs/plan), with its current state in [docs/plan/STATUS.md](docs/plan/STATUS.md).
 
@@ -92,6 +93,18 @@ docs/         User guide; plan/ holds the phase plans and STATUS.md
 
 The engine listens only on `127.0.0.1`, on a random port, accepts requests only with a token generated for each launch, and exits when the app does. Its log is `%APPDATA%\PDFnix\logs\engine.log`.
 
+## AI assistant
+
+The AI assistant (selection menu: **Simplify**, **Define**, **Ask AI Assistant**; side panel: Ctrl+Shift+A) needs **LM Studio 0.4 or newer** with at least one chat model downloaded and its server running (LM Studio → Developer → Start server, or `lms server start`; LM Studio can start the server at login). PDFnix talks to LM Studio's native REST API (`/api/v1`) from the main process, at the address set in File → Settings → AI assistant (default `http://127.0.0.1:1234`).
+
+- **Privacy**: with the default address, nothing leaves the computer. If you set the address to another machine, the selected text, your questions and the text of the page or document are sent to that machine.
+- **Language**: Simplify and Define always answer in English, whatever the document's language; typed questions are answered in the language they are written in.
+- **Model**: pick one in the panel or in Settings. "Automatic" uses a model LM Studio already has loaded; an unloaded model is loaded on first use, and the panel shows the progress.
+- **Context**: the assistant reads the current page (default) or the whole document, cut at a page boundary to fit. Follow-up questions continue the same conversation on the LM Studio server (`previous_response_id`); changing the page, the model, the context choice or the document starts a new one.
+- **Largest context** (Settings) caps the context size PDFnix asks for (default 32K tokens). When a request needs more than the loaded size, LM Studio reloads the model at the new size (PDFnix first unloads the model's smaller copies, so it is not held twice). Larger contexts use more memory, because the model's working memory (KV cache) grows with the context size; LM Studio refuses a load that would not fit, and the panel says so.
+
+Chats are kept in memory only, per tab, and are dropped when the tab closes.
+
 ## Team roles
 
 PDFnix is a solo project. [@mzeeshanaltaf](https://github.com/mzeeshanaltaf) is its author (committer), reviewer and approver.
@@ -101,6 +114,8 @@ PDFnix is a solo project. [@mzeeshanaltaf](https://github.com/mzeeshanaltaf) is 
 PDFnix works on your files on your own computer and sends no information about you or your documents anywhere. It has no telemetry, no accounts and no automatic update check.
 
 The only time it uses the network is when you ask it to download an OCR language (File → Settings → OCR languages): the engine then fetches that language's `.traineddata` file from `raw.githubusercontent.com` (the `tesseract-ocr/tessdata_fast` repository). The request names only the language file and, like any download, reveals your IP address to GitHub; nothing from your documents is sent. OCR itself, and every other feature, runs offline. The bundled English data needs no download.
+
+The AI assistant sends the text it works on to the LM Studio server set in Settings, which by default is LM Studio on your own computer (`127.0.0.1`); see [AI assistant](#ai-assistant).
 
 ## What the installer changes
 

@@ -94,6 +94,7 @@ export const MENU_COMMANDS = [
   'view.rotateAllCw',
   'view.rotateAllCcw',
   'view.toggleSidePanel',
+  'view.assistant',
   'view.layout.continuous',
   'view.layout.single',
   'view.layout.two-page',

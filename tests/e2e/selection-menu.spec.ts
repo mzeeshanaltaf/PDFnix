@@ -11,6 +11,7 @@ const ITEMS = [
   'Copy text',
   'Edit text'
 ]
+const AI_ITEMS = ['Simplify', 'Define', 'Ask AI Assistant']
 
 function menu(pdfnix: Pdfnix): Locator {
   return pdfnix.page.getByRole('menu', { name: 'Selected text' })
@@ -28,12 +29,15 @@ test('the menu over selected text marks it up and copies it', async ({ pdfnix })
   const path = pdfnix.copy('report.pdf')
   const { docId } = await pdfnix.open(path)
 
-  // Every item is there, and nothing beyond them (no sections registered).
+  // Every item is there, then the AI Assistant section (phase 10) and nothing else.
   await pdfnix.selectWords(0, 'quick', 'fox')
   await expect(menu(pdfnix)).toBeVisible()
-  for (const name of ITEMS) await expect(item(pdfnix, name)).toBeVisible()
-  await expect(menu(pdfnix).getByRole('menuitem')).toHaveCount(ITEMS.length)
-  await expect(menu(pdfnix).getByRole('separator')).toHaveCount(1)
+  for (const name of [...ITEMS, ...AI_ITEMS]) await expect(item(pdfnix, name)).toBeVisible()
+  await expect(menu(pdfnix).getByRole('menuitem')).toHaveCount(ITEMS.length + AI_ITEMS.length)
+  await expect(menu(pdfnix).getByRole('separator')).toHaveCount(2)
+  const ai = menu(pdfnix).getByRole('group', { name: 'AI Assistant' })
+  await expect(ai.getByRole('menuitem')).toHaveText(AI_ITEMS)
+  await expect(ai).toContainText('Runs on this computer with LM Studio')
 
   // Highlight from the menu.
   await item(pdfnix, 'Highlight').click()

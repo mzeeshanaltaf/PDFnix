@@ -28,6 +28,7 @@ import { PropertiesDialog } from '@/dialogs/PropertiesDialog'
 import { RecoveryDialog } from '@/dialogs/RecoveryDialog'
 import { SignatureDialog } from '@/dialogs/SignatureDialog'
 import { SelectionMenu } from '@/tools/SelectionMenu'
+import { installAssistantMenu } from '@/tools/assistantMenu'
 import { runCommand } from '@/shell/commands'
 import { EmptyState } from '@/shell/EmptyState'
 import { installShortcuts } from '@/shell/shortcuts'
@@ -113,6 +114,7 @@ function App(): React.JSX.Element {
   useEffect(() => startCodeScanner(), [])
   useEffect(() => installShortcuts(), [])
   useEffect(() => installPendingCommits(), [])
+  useEffect(() => installAssistantMenu(), [])
   useEffect(() => installImagePaste(() => useTabs.getState().activeTabId), [])
   useEffect(() => window.api.menu.onCommand(runCommand), [])
 

@@ -105,6 +105,7 @@ export function buildMenu(): void {
     command('Last Page', 'go.lastPage', 'CmdOrCtrl+End'),
     { type: 'separator' },
     command('Side Panel', 'view.toggleSidePanel', 'F4'),
+    command('AI Assistant', 'view.assistant', 'CmdOrCtrl+Shift+A'),
     { type: 'separator' },
     {
       label: 'Theme',

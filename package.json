@@ -38,6 +38,8 @@
     "lucide-react": "^1.72.0",
     "pdf-to-printer": "5.8.1",
     "radix-ui": "^1.8.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.8",
     "zustand": "^5.1.0"
   },

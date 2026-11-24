@@ -18,6 +18,7 @@ import { quadBounds } from '../viewer/geometry'
 import { pageImages } from '../viewer/pageImages'
 import { pageAnnotations, pageBlocks, pageLinks, pageTexts } from '../viewer/pageText'
 import { forgetViewPosition } from '../viewer/viewPositions'
+import { forgetAssistant } from './assistant'
 import { askPassword, closePasswordPrompt, useDialogs } from './dialogs'
 import { useEngine } from './engine'
 import { useSettings } from './settings'
@@ -286,6 +287,7 @@ function forgetDocument(tabId: string, docId: string): void {
   pageLinks.dropDocument(docId)
   pageAnnotations.dropDocument(docId)
   pageBlocks.dropDocument(docId)
+  forgetAssistant(tabId)
   const editing = useTools.getState().editing
   if (editing?.tabId === tabId) useTools.getState().setEditing(null)
 }
@@ -535,6 +537,7 @@ async function reopenAll(): Promise<void> {
       failed.push(tab.fileName)
       passwords.delete(tab.id)
       forgetViewPosition(tab.id)
+      forgetAssistant(tab.id)
       useTabs.getState().removeTab(tab.id)
     }
   }

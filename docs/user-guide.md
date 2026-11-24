@@ -19,7 +19,7 @@ To make PDFnix open PDF files when you double-click them: right-click any PDF �
 - Scroll with the mouse wheel or the arrow keys; Page Up/Down and Space move a screen at a time; Home and End go to the first and last page. Type a page number in the toolbar to jump there.
 - Zoom with Ctrl+mouse wheel, Ctrl + and Ctrl −, or the zoom box. Ctrl+1 fits the width, Ctrl+2 fits the whole page, Ctrl+0 is 100 %.
 - **View** offers continuous, single-page and two-page layouts. Ctrl+R turns the current page right, Ctrl+Shift+R left.
-- F4 shows the side panel: page thumbnails, the document's bookmarks, search, comments and QR codes.
+- F4 shows the side panel: page thumbnails, the document's bookmarks, search, comments, QR codes and the AI assistant.
 - **Find** (Ctrl+F) searches the text; Enter or F3 goes to the next result. A scanned document has no text to search until you run **Recognise Text (OCR)**.
 
 ## Comments and markup
@@ -64,6 +64,23 @@ When you open a document, PDFnix looks for QR codes and barcodes in the backgrou
 - Readable types: QR, Micro QR, rMQR, Data Matrix, Aztec, PDF417, Code 128, Code 39, EAN and UPC.
 - To stop the automatic search, turn it off in Settings. Codes are then only looked for when you open the panel or the window.
 
+## AI assistant
+
+The AI assistant explains, simplifies and answers questions about the document you are reading. It uses **LM Studio** (version 0.4 or newer) on your own computer, so nothing leaves the computer, unless you set the server address in Settings to another machine.
+
+**Before the first use:** install LM Studio, download a chat model in it (Discover tab), and start its server (Developer → Start server, or run `lms server start`). To have the server always available, turn on LM Studio's option to start it at login.
+
+- Select text, and choose **Simplify** or **Define** in the menu under the selection. The **AI Assistant** panel opens and the answer appears there as it is written. Simplify and Define always answer in English, also for text in another language; questions you type are answered in the language you write them in.
+- **Ask AI Assistant** puts the selected text in the panel's question box as a quote; type your question and press Enter (Shift+Enter starts a new line). You can also type a question without selecting anything.
+- **Ctrl+Shift+A** (or the ✦ button on the side rail, or **View → AI Assistant**) opens and closes the panel.
+- Ask follow-up questions in the same box: the assistant remembers the conversation. Changing the page or the model, or editing the document, starts a new one (a line in the chat marks where).
+- **This page / Whole document** chooses what the assistant reads: the page you are on (or the page of the selection), or the whole document. A long document may not fit; the panel then says which pages were included.
+- The model list at the top of the panel shows LM Studio's chat models. Loaded models are marked with a dot and their context size; others are loaded when first used, which can take a little while (the panel shows the progress). **Automatic** uses a model that is already loaded.
+- **Stop** ends an answer early; **Copy** copies an answer; the eraser button clears the chat. Chats are not kept after PDFnix closes.
+- Scanned pages have no text for the assistant to read: run **Tools → Recognise Text (OCR)** first.
+
+**Largest context** (Settings → AI assistant) limits how much text the assistant may send to the model at once. A larger value lets more of a long document in, but makes LM Studio reload the model at that size, and the model's working memory grows with the context, so it needs more of your computer's memory. Keep it at 32K unless whole-document questions about long files need more.
+
 ## Saving
 
 - **Save** (Ctrl+S) writes your changes into the file; **Save As** (Ctrl+Shift+S) writes a new file. A dot on the tab means there are unsaved changes.
@@ -74,7 +91,7 @@ When you open a document, PDFnix looks for QR codes and barcodes in the backgrou
 
 **File → Settings** (Ctrl+,) sets the theme (same as Windows, light or dark), how documents open (zoom and page layout), your name for comments, the default highlight colour, the OCR languages to start with, whether to look for QR codes and barcodes automatically, and how often recovery copies are made.
 
-The **AI assistant (LM Studio)** section prepares the AI assistant, which uses LM Studio (version 0.4 or newer) running on your computer; nothing is sent to the internet. Start LM Studio's server (Developer → Start server, or `lms server start`), then press **Test connection**: it saves the server address and lists your models, marking the ones already loaded. Choose the model, whether the assistant reads the current page or the whole document, and the largest context to ask for. A larger context lets more of a long document in, but uses more memory and makes LM Studio reload the model.
+The **AI assistant (LM Studio)** section prepares the AI assistant, which uses LM Studio (version 0.4 or newer) running on your computer; nothing is sent to the internet. Start LM Studio's server (Developer → Start server, or `lms server start`), then press **Test connection**: it saves the server address and lists your models, marking the ones already loaded. Choose the model, whether the assistant reads the current page or the whole document, and the largest context to ask for (see [AI assistant](#ai-assistant)).
 
 **Help → Keyboard Shortcuts** (Ctrl+/ or F1) lists every shortcut.
 

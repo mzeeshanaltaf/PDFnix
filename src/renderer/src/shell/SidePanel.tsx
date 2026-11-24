@@ -1,5 +1,14 @@
-import { LayoutGrid, ListTree, MessageSquareText, QrCode, Search as SearchIcon } from 'lucide-react'
+import {
+  LayoutGrid,
+  ListTree,
+  MessageSquareText,
+  QrCode,
+  Search as SearchIcon,
+  Sparkles
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { cn } from 'cn'
+import { Assistant } from '@/panels/Assistant'
 import { Codes } from '@/panels/Codes'
 import { Comments } from '@/panels/Comments'
 import { Outline } from '@/panels/Outline'
@@ -14,7 +23,8 @@ const PANELS: { id: SidePanelId; label: string; icon: LucideIcon }[] = [
   { id: 'outline', label: 'Outline', icon: ListTree },
   { id: 'search', label: 'Find', icon: SearchIcon },
   { id: 'annotations', label: 'Comments', icon: MessageSquareText },
-  { id: 'codes', label: 'QR Codes', icon: QrCode }
+  { id: 'codes', label: 'QR Codes', icon: QrCode },
+  { id: 'assistant', label: 'AI Assistant', icon: Sparkles }
 ]
 
 function PanelBody({ tab, panel }: { tab: DocumentTab; panel: SidePanelId }): React.JSX.Element {
@@ -29,6 +39,8 @@ function PanelBody({ tab, panel }: { tab: DocumentTab; panel: SidePanelId }): Re
       return <Comments tab={tab} />
     case 'codes':
       return <Codes tab={tab} />
+    case 'assistant':
+      return <Assistant tab={tab} />
   }
 }
 
@@ -67,7 +79,13 @@ export function SidePanel({ tab }: { tab: DocumentTab | null }): React.JSX.Eleme
         ))}
       </nav>
       {open && tab && (
-        <section aria-label={current.label} className="flex w-60 min-h-0 flex-col border-l">
+        <section
+          aria-label={current.label}
+          className={cn(
+            'flex min-h-0 flex-col border-l',
+            current.id === 'assistant' ? 'w-96' : 'w-60'
+          )}
+        >
           <h2 className="flex h-9 shrink-0 items-center border-b px-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {current.label}
           </h2>

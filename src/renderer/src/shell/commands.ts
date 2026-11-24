@@ -358,6 +358,10 @@ export function runCommand(command: CommandId): void {
     case 'view.toggleSidePanel':
       setSidePanel(tab.id, !tab.sidePanel.open)
       break
+    case 'view.assistant':
+      if (tab.sidePanel.open && tab.sidePanel.panel === 'assistant') setSidePanel(tab.id, false)
+      else setSidePanel(tab.id, true, 'assistant')
+      break
     case 'view.layout.continuous':
       store.patchTab(tab.id, { layout: 'continuous' })
       break

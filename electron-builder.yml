@@ -18,6 +18,15 @@ files:
   - '!**/node_modules/@floating-ui/**'
   - '!**/node_modules/react-dom/**'
   - '!**/node_modules/sonner/**'
+  # The AI assistant's Markdown renderer (react-markdown and its unified tree).
+  - '!**/node_modules/react-markdown/**'
+  - '!**/node_modules/remark-*/**'
+  - '!**/node_modules/micromark*/**'
+  - '!**/node_modules/mdast-*/**'
+  - '!**/node_modules/hast-*/**'
+  - '!**/node_modules/unist-*/**'
+  - '!**/node_modules/unified/**'
+  - '!**/node_modules/vfile*/**'
 asar: true
 # The UI is English only; Chromium's other locales add ~47 MB.
 electronLanguages:

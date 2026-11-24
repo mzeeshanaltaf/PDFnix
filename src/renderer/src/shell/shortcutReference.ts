@@ -74,7 +74,12 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['Ctrl+2'], action: 'Fit page', command: 'view.fitPage' },
       { keys: ['Ctrl+R'], action: 'Rotate page right', command: 'view.rotateCw' },
       { keys: ['Ctrl+Shift+R'], action: 'Rotate page left', command: 'view.rotateCcw' },
-      { keys: ['F4'], action: 'Show or hide the side panel', command: 'view.toggleSidePanel' }
+      { keys: ['F4'], action: 'Show or hide the side panel', command: 'view.toggleSidePanel' },
+      {
+        keys: ['Ctrl+Shift+A'],
+        action: 'Show or hide the AI Assistant',
+        command: 'view.assistant'
+      }
     ]
   },
   {

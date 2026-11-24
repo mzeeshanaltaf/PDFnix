@@ -46,6 +46,9 @@ export function shortcutFor(key: KeyInfo, context: KeyContext): ShortcutAction |
     switch (name) {
       case 'o':
         return command(key.shiftKey ? 'document.organise' : 'file.open')
+      // Ctrl+A alone is Select All (the Edit menu's role).
+      case 'a':
+        return key.shiftKey ? command('view.assistant') : null
       case 'x':
         return key.shiftKey && !context.typing ? command('document.redact') : null
       case 's':
