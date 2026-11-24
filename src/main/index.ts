@@ -1,5 +1,6 @@
-import { app, BrowserWindow, dialog, shell } from 'electron'
+import { app, BrowserWindow, dialog, Menu, shell } from 'electron'
 import { join } from 'path'
+import { editMenuTemplate } from './edit-menu'
 import { EngineManager, type EngineStartError } from './engine'
 import appIcon from '../../build/icon.ico?asset'
 import { IPC } from '../shared/api'
@@ -100,6 +101,11 @@ function createWindow(): BrowserWindow {
   // While the page (re)loads it cannot take open requests; they are queued
   // until it asks for them.
   window.webContents.on('did-start-loading', rendererIsLoading)
+  // Text fields get Cut/Copy/Paste on right-click (Electron shows no menu).
+  window.webContents.on('context-menu', (_event, params) => {
+    const template = editMenuTemplate(params)
+    if (template) Menu.buildFromTemplate(template).popup({ window })
+  })
 
   if (DEV_RENDERER_URL) {
     void window.loadURL(DEV_RENDERER_URL)

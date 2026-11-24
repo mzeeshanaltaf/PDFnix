@@ -22,7 +22,8 @@ import {
   type AiEvent,
   type AiEventMessage,
   type AiModel,
-  type AiServerInfo
+  type AiServerInfo,
+  type AiStats
 } from '../../../shared/ai'
 import { engine, type PlainText } from '@/api/engine'
 import {
@@ -40,6 +41,8 @@ import {
   type AssistantAsk,
   type Conversation
 } from './assistantRules'
+import { clearCitation, locateQuotes } from './citation'
+import { citationQuotes } from './citationRules'
 import { useSettings } from './settings'
 import { getTab, type DocumentTab } from './tabs'
 
@@ -70,6 +73,10 @@ export interface AnswerItem {
   streaming: boolean
   /** The model that answers, for the progress line ("Loading Gemma 4…"). */
   modelLabel: string
+  /** LM Studio's figures for a finished answer (speed, time to first token, tokens). */
+  stats?: AiStats
+  /** Where each quoted citation's words are in the document (0-based page, null: not found). */
+  quotePages?: Record<string, number | null>
 }
 
 export interface DividerItem {
@@ -94,6 +101,14 @@ export interface TabAssistant {
   pendingQuote: { text: string; page: number } | null
   /** A question that could not be sent because LM Studio was not available. */
   blocked: AssistantAsk | null
+  /** How much of the context the conversation fills, after its last answer. */
+  usage: ContextUsage | null
+}
+
+/** Tokens the conversation holds (prompt, history and answers) out of its context size. */
+export interface ContextUsage {
+  used: number
+  total: number
 }
 
 interface AssistantState {
@@ -137,7 +152,8 @@ function emptyChat(): TabAssistant {
     contextMode: useSettings.getState().aiContext,
     contextNote: null,
     pendingQuote: null,
-    blocked: null
+    blocked: null,
+    usage: null
   }
 }
 
@@ -406,13 +422,19 @@ async function send(turn: Turn, continuing: Conversation | null): Promise<AiEven
       result = { type: 'error', error: { code: 'server_error', message: errorText(error) } }
     }
     if (result.type === 'done' && !result.cancelled && result.responseId) {
+      const contextLength = request.contextLength ?? continuing?.contextLength ?? 0
+      // A continued turn's input counts the whole conversation so far
+      // (checked against LM Studio 0.4.16), so its input and output are what
+      // the context holds now.
+      const used = (result.stats?.inputTokens ?? 0) + (result.stats?.outputTokens ?? 0)
       patchChat(tabId, {
+        usage: used > 0 && contextLength > 0 ? { used, total: contextLength } : null,
         conversation: {
           responseId: result.responseId,
           model: turn.model.key,
           contextMode: turn.contextMode,
           page: turn.page,
-          contextLength: request.contextLength ?? continuing?.contextLength ?? 0,
+          contextLength,
           revision: continuing?.revision ?? turn.revision
         }
       })
@@ -517,7 +539,7 @@ export async function askAssistant(tabId: string, ask: AssistantAsk): Promise<vo
       answer
     ],
     blocked: null,
-    ...(!continuing && { conversation: null, contextNote: null })
+    ...(!continuing && { conversation: null, contextNote: null, usage: null })
   }))
 
   let result = await send(turn, continuing)
@@ -528,7 +550,7 @@ export async function askAssistant(tabId: string, ask: AssistantAsk): Promise<vo
       const items = current.items.slice()
       const at = items.findIndex((item) => item.id === turn.userId)
       if (at !== -1) items.splice(at, 0, divider())
-      return { items, conversation: null }
+      return { items, conversation: null, usage: null }
     })
     patchAnswer(tabId, turn.answerId, (item) => ({ ...item, text: '', thinking: false }))
     result = await send(turn, null)
@@ -539,8 +561,26 @@ export async function askAssistant(tabId: string, ask: AssistantAsk): Promise<vo
     thinking: false,
     status: undefined,
     ...(result.type === 'error' && { error: result.error }),
-    ...(result.type === 'done' && result.cancelled && { cancelled: true })
+    ...(result.type === 'done' && result.cancelled && { cancelled: true }),
+    ...(result.type === 'done' && !result.cancelled && result.stats && { stats: result.stats })
   }))
+  if (result.type === 'done' && !result.cancelled) void placeQuotes(tabId, turn.answerId)
+}
+
+/**
+ * Looks up the finished answer's quotes in the document, so each citation
+ * chip points at the page the words are really on.
+ */
+async function placeQuotes(tabId: string, answerId: string): Promise<void> {
+  const tab = getTab(tabId)
+  const item = chatOf(tabId).items.find((entry) => entry.id === answerId)
+  if (!tab || item?.kind !== 'assistant') return
+  const quotes = citationQuotes(item.text)
+  if (quotes.length === 0) return
+  const quotePages = await locateQuotes(tab.docId, quotes)
+  // The document may have changed (or closed) meanwhile; then the pages may be wrong.
+  if (getTab(tabId)?.revision !== tab.revision) return
+  patchAnswer(tabId, answerId, (answer) => ({ ...answer, quotePages }))
 }
 
 /** Stops the answer running in the tab, if any; it is kept as far as it got. */
@@ -586,7 +626,14 @@ export async function retryBlocked(tabId: string): Promise<void> {
 /** Empties the chat and forgets the conversation. */
 export function clearAssistant(tabId: string): void {
   stopAssistant(tabId)
-  patchChat(tabId, { items: [], conversation: null, contextNote: null, blocked: null })
+  clearCitation(tabId)
+  patchChat(tabId, {
+    items: [],
+    conversation: null,
+    contextNote: null,
+    blocked: null,
+    usage: null
+  })
 }
 
 /** This page or the whole document; also the default for new tabs. Starts a new conversation. */
@@ -606,6 +653,7 @@ export function setPendingQuote(tabId: string, quote: { text: string; page: numb
 /** Drops a closed tab's chat, stopping its answer. */
 export function forgetAssistant(tabId: string): void {
   stopAssistant(tabId)
+  clearCitation(tabId)
   generations.delete(tabId)
   useAssistant.setState((state) => {
     if (!(tabId in state.tabs)) return state

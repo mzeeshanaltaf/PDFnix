@@ -33,6 +33,7 @@ import {
   selectAnnotation,
   undo
 } from '@/state/edits'
+import { clearCitation } from '@/state/citation'
 import { getActiveTab, useTabs, type SidePanelId } from '@/state/tabs'
 import { cancelPending, commitPending, usePending } from '@/state/pending'
 import { armSignature, useSignatures } from '@/state/signatures'
@@ -276,7 +277,10 @@ export function runCommand(command: CommandId): void {
       if (usePending.getState().pending) void commitPending()
       else if (tools.editing) tools.setEditing(null)
       else if (tab.selectedAnnotation) selectAnnotation(tab.id, null)
-      else if (tools.activeTool !== 'select') tools.setActiveTool('select')
+      // An assistant citation's highlight goes before the tool does.
+      else if (!clearCitation(tab.id) && tools.activeTool !== 'select') {
+        tools.setActiveTool('select')
+      }
       break
     }
     case 'tools.highlight':

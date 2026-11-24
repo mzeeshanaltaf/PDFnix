@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import { cn } from 'cn'
-import type { PageInfo, SearchHit } from '@/api/engine'
+import type { PageInfo, Quad, SearchHit } from '@/api/engine'
 import { AnnotationLayer } from './AnnotationLayer'
 import { CodeLayer } from './CodeLayer'
 import { EditLayer } from './EditLayer'
@@ -29,6 +29,8 @@ interface PageViewProps {
   /** Search hits on this page, if any. */
   hits?: readonly SearchHit[]
   activeHit?: SearchHit | null
+  /** The text an assistant citation points at, on this page. */
+  citation?: readonly Quad[]
   /** The selected annotation, if it is on this page. */
   selectedAnnotId: number | null
 }
@@ -50,6 +52,7 @@ export const PageView = memo(function PageView({
   priority,
   hits,
   activeHit,
+  citation,
   selectedAnnotId
 }: PageViewProps): React.JSX.Element {
   const wanted = renderScale(imageZoom, devicePixelRatio, page)
@@ -116,6 +119,18 @@ export const PageView = memo(function PageView({
               />
             ))
           )}
+        </div>
+      )}
+      {citation && citation.length > 0 && (
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          {citation.map((quad, index) => (
+            <div
+              key={index}
+              className="pdf-cite-hit"
+              data-testid="citation-highlight"
+              style={rectToPx(quadBounds(quad), zoom)}
+            />
+          ))}
         </div>
       )}
       <TextLayer

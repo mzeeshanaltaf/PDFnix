@@ -9,7 +9,8 @@ import {
   estimateTokens,
   type AiContextMode,
   type AiModel,
-  type AiReasoning
+  type AiReasoning,
+  type AiStats
 } from '../../../shared/ai'
 
 export type AssistantAction = 'simplify' | 'define' | 'ask'
@@ -150,11 +151,21 @@ export function systemPrompt(
       `There is no excerpt: ${pagesLabel} has no text (it may be a scanned image without a text layer). If the request needs the document's text, say so.`
     ].join('\n')
   }
+  // Checked live with gemma-4: without the marker named explicitly it cited
+  // section numbers as pages, and with quotes optional it never quoted.
+  const cite = [
+    'Cite every statement taken from the excerpt, right after it, as [p. N: "exact words"].',
+    'N is the number in the "--- Page N ---" marker the passage sits under. Never use a section, clause, heading or printed page number from the text itself.',
+    '"exact words" are 3 to 12 consecutive words copied character for character from that page, so the reader can find them; do not paraphrase, shorten or fix them.',
+    'Example: The fee is due monthly [p. 4: "payable on the first day of each month"].',
+    'Write [p. N] without a quote only when no short passage fits. Cite only pages in the excerpt, never general knowledge. "Simplify" answers need no citations.'
+  ]
   const cut = truncated
     ? ' Only part of the document fits here; the rest was left out, so say so if the answer may be in the missing part.'
     : ''
   return [
     ...rules,
+    ...cite,
     '',
     `Document excerpt (${pagesLabel}), each page marked with its page number:${cut}`,
     '"""',
@@ -196,4 +207,55 @@ export function dividerLabel(mode: AiContextMode, page: number, modelLabel: stri
 export function promptOverhead(fileName: string, input: string, pageCount: number): number {
   const empty = systemPrompt('x', fileName, `pages 1–${pageCount} of ${pageCount}`, true)
   return estimateTokens(empty + input) + Math.ceil(labelOverhead(pageCount) / CHARS_PER_TOKEN)
+}
+
+/** "1,234" */
+function count(value: number): string {
+  return Math.round(value).toLocaleString('en-US')
+}
+
+/** "0.53 s", "12 s" */
+function seconds(value: number): string {
+  return value < 10 ? `${value.toFixed(2)} s` : `${Math.round(value)} s`
+}
+
+/**
+ * The figures shown under a finished answer, as LM Studio reported them:
+ * time to first token, speed, tokens written and, if the model was loaded
+ * for it, how long that took.
+ */
+export function answerStats(stats: AiStats | undefined): { label: string; title: string }[] {
+  if (!stats) return []
+  const result: { label: string; title: string }[] = []
+  if (stats.timeToFirstTokenSeconds !== undefined) {
+    result.push({
+      label: `${seconds(stats.timeToFirstTokenSeconds)} TTFT`,
+      title: 'Time to first token'
+    })
+  }
+  if (stats.tokensPerSecond !== undefined && stats.tokensPerSecond > 0) {
+    result.push({ label: `${stats.tokensPerSecond.toFixed(1)} tok/s`, title: 'Tokens per second' })
+  }
+  if (stats.outputTokens !== undefined) {
+    const reasoning = stats.reasoningTokens ? `, ${count(stats.reasoningTokens)} reasoning` : ''
+    result.push({
+      label: `${count(stats.outputTokens)} tokens`,
+      title: `Tokens in the answer${reasoning}`
+    })
+  }
+  if (stats.modelLoadSeconds !== undefined && stats.modelLoadSeconds > 0) {
+    result.push({ label: `loaded in ${seconds(stats.modelLoadSeconds)}`, title: 'Model load time' })
+  }
+  return result
+}
+
+/** "886 / 262,144" and the share used, 0…1. */
+export function usageLabel(usage: { used: number; total: number }): {
+  text: string
+  fraction: number
+} {
+  return {
+    text: `${count(usage.used)} / ${count(usage.total)}`,
+    fraction: Math.min(1, Math.max(0, usage.used / usage.total))
+  }
 }

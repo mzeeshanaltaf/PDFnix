@@ -39,7 +39,7 @@ To make PDFnix open PDF files when you double-click them: right-click any PDF �
 ## Pages, forms and redaction
 
 - **Document → Organise Pages** (Ctrl+Shift+O) shows all pages: drag to reorder, Delete to remove, right-click to rotate or duplicate. You can also insert pages, extract them to a new file, split a document and merge several.
-- Form fields can be filled in directly on the page; Tab moves to the next field. The form bar can reset or flatten the form.
+- Form fields can be filled in directly on the page; Tab moves to the next field. Right-click a field for Cut, Copy and Paste. The form bar can reset or flatten the form.
 - **Redact** removes text and pictures for good: mark areas (R), or search for words and mark every occurrence, then apply. Once you save, the removed content is gone from the file itself (Undo still works while the document stays open).
 - **Watermark** and **Header and Footer** add text, pictures or page numbers to every page.
 
@@ -76,6 +76,8 @@ The AI assistant explains, simplifies and answers questions about the document y
 - Ask follow-up questions in the same box: the assistant remembers the conversation. Changing the page or the model, or editing the document, starts a new one (a line in the chat marks where).
 - **This page / Whole document** chooses what the assistant reads: the page you are on (or the page of the selection), or the whole document. A long document may not fit; the panel then says which pages were included.
 - The model list at the top of the panel shows LM Studio's chat models. Loaded models are marked with a dot and their context size; others are loaded when first used, which can take a little while (the panel shows the progress). **Automatic** uses a model that is already loaded.
+- Answers cite the pages they come from as small chips, such as **p. 3**. Click a chip to go to that page; the words the answer is based on are highlighted in blue (hover over the chip to read them). Click the chip again, press **Escape** or click the page to remove the highlight. The chip points to the page where the quoted words really are, even if the model named another page.
+- Under each answer are LM Studio's figures: time to first token (**TTFT**), speed in tokens per second, and the answer's length in tokens. The ring under the question box shows how much of the model's context the conversation fills (for example 996 / 262,144 tokens); a new conversation starts empty.
 - **Stop** ends an answer early; **Copy** copies an answer; the eraser button clears the chat. Chats are not kept after PDFnix closes.
 - Scanned pages have no text for the assistant to read: run **Tools → Recognise Text (OCR)** first.
 

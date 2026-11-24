@@ -44,9 +44,13 @@ import {
   useAssistant,
   type AnswerItem,
   type ChatItem,
+  type ContextUsage,
   type TabAssistant,
   type UserItem
 } from '@/state/assistant'
+import { answerStats, usageLabel } from '@/state/assistantRules'
+import { citationKey, clearCitation, showCitation, useCitation } from '@/state/citation'
+import { linkCitations, parseCitationHref, type Citation } from '@/state/citationRules'
 import { showPreferences } from '@/state/dialogs'
 import { useSettings } from '@/state/settings'
 import type { DocumentTab } from '@/state/tabs'
@@ -329,28 +333,82 @@ function UserMessage({ item }: { item: UserItem }): React.JSX.Element {
   )
 }
 
-const MARKDOWN_COMPONENTS: Components = {
-  // Links open only after the same confirmation as links in a PDF.
-  a: ({ href, children }) => {
-    const target = externalLinkTarget(href)
-    if (!target) return <span>{children}</span>
-    return (
-      <span
-        role="link"
-        tabIndex={0}
-        className="assistant-link"
-        title={target}
-        onClick={() => void openWebLink(target)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') void openWebLink(target)
-        }}
-      >
-        {children}
-      </span>
-    )
-  },
-  // Pictures from the web are not loaded (and the page's policy blocks them).
-  img: ({ alt }) => <span className="text-muted-foreground">[{alt || 'image'}]</span>
+function CitationChip({
+  tabId,
+  citation,
+  children
+}: {
+  tabId: string
+  citation: Citation
+  children: React.ReactNode
+}): React.JSX.Element {
+  const page = citation.page + 1
+  const shown = useCitation((state) => state.highlight?.key === citationKey(tabId, citation))
+  const quoted = citation.quote ? `Page ${page}: “${citation.quote}”` : null
+  const hint = shown
+    ? 'Click again or press Escape to remove the highlight'
+    : 'Click to highlight it on the page'
+  return (
+    <button
+      type="button"
+      className="assistant-cite"
+      title={quoted ? `${quoted}\n${hint}` : `Go to page ${page}`}
+      aria-label={quoted ? `${quoted}. Highlight on the page` : `Go to page ${page}`}
+      aria-pressed={quoted ? shown : undefined}
+      data-testid="assistant-citation"
+      onClick={() => void showCitation(tabId, citation)}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && clearCitation(tabId)) event.stopPropagation()
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Links open only after the same confirmation as links in a PDF. */
+function WebLink({
+  href,
+  children
+}: {
+  href: string | undefined
+  children: React.ReactNode
+}): React.JSX.Element {
+  const target = externalLinkTarget(href)
+  if (!target) return <span>{children}</span>
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      className="assistant-link"
+      title={target}
+      onClick={() => void openWebLink(target)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') void openWebLink(target)
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
+/** How an answer's Markdown is drawn; citation links (`#cite-…`) become page chips. */
+function markdownComponents(tabId: string): Components {
+  return {
+    a: ({ href, children }) => {
+      const citation = parseCitationHref(href)
+      if (citation) {
+        return (
+          <CitationChip tabId={tabId} citation={citation}>
+            {children}
+          </CitationChip>
+        )
+      }
+      return <WebLink href={href}>{children}</WebLink>
+    },
+    // Pictures from the web are not loaded (and the page's policy blocks them).
+    img: ({ alt }) => <span className="text-muted-foreground">[{alt || 'image'}]</span>
+  }
 }
 
 function progressText(item: AnswerItem): string {
@@ -363,16 +421,40 @@ function progressText(item: AnswerItem): string {
   return item.thinking ? 'Thinking…' : 'Waiting for LM Studio…'
 }
 
+function AnswerStats({ item }: { item: AnswerItem }): React.JSX.Element | null {
+  const parts = answerStats(item.stats)
+  if (parts.length === 0) return null
+  return (
+    <p
+      className="ml-auto flex min-w-0 flex-wrap justify-end gap-x-2 text-[11px] text-muted-foreground tabular-nums"
+      data-testid="assistant-stats"
+    >
+      {parts.map((part) => (
+        <span key={part.title} title={part.title}>
+          {part.label}
+        </span>
+      ))}
+    </p>
+  )
+}
+
 function AnswerMessage({
   tabId,
+  pageCount,
   item,
   last
 }: {
   tabId: string
+  pageCount: number
   item: AnswerItem
   last: boolean
 }): React.JSX.Element {
   const waiting = item.streaming && item.text === ''
+  const components = useMemo(() => markdownComponents(tabId), [tabId])
+  const markdown = useMemo(
+    () => linkCitations(item.text, pageCount, item.quotePages),
+    [item.text, pageCount, item.quotePages]
+  )
   return (
     <li
       className="flex flex-col gap-1"
@@ -391,8 +473,8 @@ function AnswerMessage({
       )}
       {item.text !== '' && (
         <div className="assistant-markdown" data-testid="assistant-answer">
-          <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-            {item.text}
+          <Markdown remarkPlugins={[remarkGfm]} components={components}>
+            {markdown}
           </Markdown>
         </div>
       )}
@@ -418,7 +500,7 @@ function AnswerMessage({
           {item.text === '' ? 'Stopped before an answer.' : 'Stopped.'}
         </p>
       )}
-      <div className="flex gap-0.5">
+      <div className="flex items-center gap-0.5">
         {item.streaming ? (
           <button type="button" className={TEXT_BUTTON} onClick={() => stopAssistant(tabId)}>
             <Square className="size-3" aria-hidden /> Stop
@@ -434,6 +516,7 @@ function AnswerMessage({
             </button>
           )
         )}
+        {!item.streaming && <AnswerStats item={item} />}
       </div>
     </li>
   )
@@ -472,7 +555,15 @@ function Messages({ tab, chat }: { tab: DocumentTab; chat: TabAssistant }): Reac
       case 'user':
         return <UserMessage key={item.id} item={item} />
       case 'assistant':
-        return <AnswerMessage key={item.id} tabId={tab.id} item={item} last={item === lastAnswer} />
+        return (
+          <AnswerMessage
+            key={item.id}
+            tabId={tab.id}
+            pageCount={tab.pageCount}
+            item={item}
+            last={item === lastAnswer}
+          />
+        )
       case 'divider':
         return <Divider key={item.id} label={item.label} />
     }
@@ -504,6 +595,46 @@ function Messages({ tab, chat }: { tab: DocumentTab; chat: TabAssistant }): Reac
 }
 
 // --- input -----------------------------------------------------------------------
+
+/** A ring that fills as the conversation uses up the model's context, with the numbers. */
+function ContextGauge({ usage }: { usage: ContextUsage }): React.JSX.Element {
+  const { text, fraction } = usageLabel(usage)
+  const radius = 6
+  const circumference = 2 * Math.PI * radius
+  const percent = fraction * 100
+  const shown = percent < 1 && percent > 0 ? '<1' : Math.round(percent).toString()
+  return (
+    <div
+      className="flex items-center gap-1.5 text-[11px] text-muted-foreground tabular-nums"
+      title={`Context: ${text} tokens (${shown}% used). A new conversation starts empty.`}
+      data-testid="assistant-context-usage"
+    >
+      <svg viewBox="0 0 16 16" className="size-3.5 -rotate-90" aria-hidden>
+        <circle cx="8" cy="8" r={radius} fill="none" strokeWidth="2.5" className="stroke-border" />
+        <circle
+          cx="8"
+          cy="8"
+          r={radius}
+          fill="none"
+          strokeWidth="2.5"
+          strokeLinecap={fraction > 0 ? 'round' : 'butt'}
+          strokeDasharray={`${Math.max(fraction * circumference, fraction > 0 ? 0.5 : 0)} ${circumference}`}
+          className={cn(
+            fraction >= 0.9
+              ? 'stroke-destructive'
+              : fraction >= 0.7
+                ? 'stroke-amber-500'
+                : 'stroke-primary'
+          )}
+        />
+      </svg>
+      <span>
+        <span className="sr-only">Context used: </span>
+        {text}
+      </span>
+    </div>
+  )
+}
 
 function Composer({ tab, chat }: { tab: DocumentTab; chat: TabAssistant }): React.JSX.Element {
   const [question, setQuestion] = useState('')
@@ -602,6 +733,11 @@ function Composer({ tab, chat }: { tab: DocumentTab; chat: TabAssistant }): Reac
           </button>
         )}
       </div>
+      {chat.usage && (
+        <div className="mt-1.5 flex justify-end px-1">
+          <ContextGauge usage={chat.usage} />
+        </div>
+      )}
     </div>
   )
 }
@@ -623,7 +759,8 @@ export function Assistant({ tab }: { tab: DocumentTab }): React.JSX.Element {
         contextMode: defaultMode,
         contextNote: null,
         pendingQuote: null,
-        blocked: null
+        blocked: null,
+        usage: null
       },
     [stored, defaultMode]
   )

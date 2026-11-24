@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { cn } from 'cn'
 import type { Rect, SearchHit } from '@/api/engine'
+import { clearCitation, useCitation } from '@/state/citation'
 import { getTab, useTabs, type DocumentTab } from '@/state/tabs'
 import { useTools } from '@/state/tools'
 import { registerViewer, type ViewerHandle } from './controller'
@@ -427,6 +428,12 @@ export function PageList({ tab }: { tab: DocumentTab }): React.JSX.Element {
     return map
   }, [tab.search.hits])
   const activeHit = tab.search.hits[tab.search.activeIndex] ?? null
+  // The text an assistant citation points at, while the document is unchanged.
+  const citation = useCitation((state) =>
+    state.highlight?.tabId === tab.id && state.highlight.revision === tab.revision
+      ? state.highlight
+      : null
+  )
   const activeTool = useTools((state) => state.activeTool)
 
   const pages: React.JSX.Element[] = []
@@ -450,6 +457,7 @@ export function PageList({ tab }: { tab: DocumentTab }): React.JSX.Element {
             priority={inView ? IMAGE_PRIORITY.visible : IMAGE_PRIORITY.nearby}
             hits={pageHits}
             activeHit={pageHits && activeHit?.page === box.index ? activeHit : null}
+            citation={citation?.page === box.index ? citation.quads : undefined}
             selectedAnnotId={
               tab.selectedAnnotation?.page === box.index ? tab.selectedAnnotation.annotId : null
             }
@@ -469,6 +477,8 @@ export function PageList({ tab }: { tab: DocumentTab }): React.JSX.Element {
       aria-label={`Pages of ${tab.fileName}`}
       onScroll={sync}
       onContextMenu={openMenuOnSelection}
+      // A click on the pages removes an assistant citation's highlight.
+      onPointerDown={() => clearCitation(tab.id)}
       data-tab-id={tab.id}
       data-zoom={zoom}
     >

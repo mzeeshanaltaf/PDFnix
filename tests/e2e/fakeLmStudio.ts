@@ -137,7 +137,12 @@ export async function startFakeLmStudio(): Promise<FakeLmStudio> {
       result: {
         model_instance_id: KEY,
         output: [{ type: 'message', content: fake.answer.join('') }],
-        stats: { input_tokens: 100, total_output_tokens: fake.answer.length },
+        stats: {
+          input_tokens: 100,
+          total_output_tokens: fake.answer.length,
+          tokens_per_second: 42.5,
+          time_to_first_token_seconds: 0.25
+        },
         response_id: responseId
       }
     })

@@ -11,6 +11,9 @@ import type { OpenedDocument, PlainText } from '../api/engine'
 
 const engineMock = vi.hoisted(() => ({
   plainText: vi.fn(),
+  search: vi.fn<(docId: string, query: string) => Promise<{ hits: unknown[]; truncated: boolean }>>(
+    async () => ({ hits: [], truncated: false })
+  ),
   setRecoveryDelay: vi.fn(async () => undefined)
 }))
 vi.mock('@/api/engine', () => ({ engine: engineMock }))
@@ -256,6 +259,65 @@ describe('assistant store', () => {
     await followUp
     expect(chatOf(tabId).conversation?.responseId).toBe('resp_2')
     expect(chatOf(tabId).items.some((item) => item.kind === 'divider')).toBe(false)
+  })
+
+  it('keeps each answer stats and how much of the context the conversation fills', async () => {
+    void askAssistant(tabId, { action: 'define', selection: 'lease', page: 0 })
+    ;(await nthCall(1)).finish({
+      type: 'done',
+      responseId: 'resp_1',
+      stats: {
+        inputTokens: 600,
+        outputTokens: 40,
+        tokensPerSecond: 50,
+        timeToFirstTokenSeconds: 0.5
+      }
+    })
+    await vi.waitFor(() => expect(chatOf(tabId).usage).toEqual({ used: 640, total: 8192 }))
+    expect(lastAnswer().stats).toMatchObject({ tokensPerSecond: 50, timeToFirstTokenSeconds: 0.5 })
+
+    // A follow-up's input already counts the conversation so far.
+    void askAssistant(tabId, { action: 'ask', question: 'More?' })
+    ;(await nthCall(2)).finish({
+      type: 'done',
+      responseId: 'resp_2',
+      stats: { inputTokens: 660, outputTokens: 20 }
+    })
+    await vi.waitFor(() => expect(chatOf(tabId).usage).toEqual({ used: 680, total: 8192 }))
+
+    // A new conversation starts empty; so does a cleared chat.
+    setContextMode(tabId, 'document')
+    void askAssistant(tabId, { action: 'ask', question: 'Whole thing?' })
+    await nthCall(3)
+    expect(chatOf(tabId).usage).toBeNull()
+    calls[2].finish({
+      type: 'done',
+      responseId: 'resp_3',
+      stats: { inputTokens: 900, outputTokens: 9 }
+    })
+    await vi.waitFor(() => expect(chatOf(tabId).usage?.used).toBe(909))
+    clearAssistant(tabId)
+    expect(chatOf(tabId).usage).toBeNull()
+  })
+
+  it('looks up quoted citations once the answer ends, to point at the right page', async () => {
+    engineMock.search.mockImplementation(async (_docId: string, query: string) => ({
+      hits:
+        query === 'notice of one month'
+          ? [{ page: 2, quads: [], before: '', match: query, after: '' }]
+          : [],
+      truncated: false
+    }))
+    void askAssistant(tabId, { action: 'ask', question: 'How do I leave?' })
+    const call = await nthCall(1)
+    call.emit({
+      type: 'delta',
+      text: 'Give notice [p. 7: "notice of one month"]; see [p. 1: "nowhere at all"].'
+    })
+    call.finish({ type: 'done', responseId: 'resp_1' })
+    await vi.waitFor(() =>
+      expect(lastAnswer().quotePages).toEqual({ 'notice of one month': 2, 'nowhere at all': null })
+    )
   })
 
   it('starts a new conversation with a divider when the page, mode, model or document changes', async () => {

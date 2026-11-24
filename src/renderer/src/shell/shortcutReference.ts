@@ -51,7 +51,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['Delete'], action: 'Delete the selected annotation', command: 'edit.delete' },
       {
         keys: ['Escape'],
-        action: 'Cancel, deselect, back to Select',
+        action: 'Cancel, deselect, remove a citation highlight, back to Select',
         command: 'edit.escape'
       },
       { keys: ['Ctrl+F'], action: 'Find', command: 'edit.find' },

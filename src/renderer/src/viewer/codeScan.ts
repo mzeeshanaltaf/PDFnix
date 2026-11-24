@@ -204,7 +204,7 @@ function announce(tab: DocumentTab, scan: TabScan): void {
   if (panelOpen || useDialogs.getState().codesTabId === tab.id) return
   toast(`Found ${describeCodes(codes)}`, {
     description: tab.fileName,
-    duration: 10000,
+    duration: 5000,
     action: { label: 'View', onClick: () => showCodes(tab.id) }
   })
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AiModel } from '../../../shared/ai'
 import {
+  answerStats,
   canContinue,
   contextNote,
   dividerLabel,
@@ -10,6 +11,7 @@ import {
   resolveModel,
   systemPrompt,
   userPrompt,
+  usageLabel,
   type Conversation
 } from './assistantRules'
 
@@ -50,6 +52,15 @@ describe('systemPrompt', () => {
     expect(prompt).not.toContain('Only part of the document')
   })
 
+  it('asks for page citations, with exact quotes, only from the excerpt', () => {
+    const prompt = systemPrompt('--- Page 3 ---\nHello', 'letter.pdf', 'page 3')
+    expect(prompt).toContain('[p. N]')
+    expect(prompt).toContain('[p. N: "exact words"]')
+    expect(prompt).toContain('never general knowledge')
+    // The rules come before the excerpt, which stays last.
+    expect(prompt.indexOf('[p. N]')).toBeLessThan(prompt.indexOf('Document excerpt'))
+  })
+
   it('says when part of the document was left out', () => {
     const prompt = systemPrompt('text', 'long.pdf', 'pages 1–12 of 40', true)
     expect(prompt).toContain('Document excerpt (pages 1–12 of 40)')
@@ -60,6 +71,46 @@ describe('systemPrompt', () => {
     const prompt = systemPrompt('  ', 'scan.pdf', 'page 2')
     expect(prompt).toContain('There is no excerpt: page 2 has no text')
     expect(prompt).not.toContain('"""')
+    expect(prompt).not.toContain('[p. N]')
+  })
+})
+
+describe('answerStats', () => {
+  it('shows time to first token, speed and tokens as LM Studio reports them', () => {
+    expect(
+      answerStats({
+        inputTokens: 65,
+        outputTokens: 1234,
+        reasoningTokens: 0,
+        tokensPerSecond: 56.19986716395035,
+        timeToFirstTokenSeconds: 0.531
+      }).map((part) => part.label)
+    ).toEqual(['0.53 s TTFT', '56.2 tok/s', '1,234 tokens'])
+  })
+
+  it('adds the load time when the model was loaded for the answer', () => {
+    const parts = answerStats({ timeToFirstTokenSeconds: 14.4, modelLoadSeconds: 12.2 })
+    expect(parts.map((part) => part.label)).toEqual(['14 s TTFT', 'loaded in 12 s'])
+  })
+
+  it('says how many of the tokens were reasoning, in the tooltip', () => {
+    const [tokens] = answerStats({ outputTokens: 300, reasoningTokens: 120 })
+    expect(tokens.title).toBe('Tokens in the answer, 120 reasoning')
+  })
+
+  it('shows nothing without stats', () => {
+    expect(answerStats(undefined)).toEqual([])
+    expect(answerStats({})).toEqual([])
+  })
+})
+
+describe('usageLabel', () => {
+  it('gives the numbers and the share used', () => {
+    expect(usageLabel({ used: 886, total: 262144 })).toEqual({
+      text: '886 / 262,144',
+      fraction: 886 / 262144
+    })
+    expect(usageLabel({ used: 5000, total: 4096 }).fraction).toBe(1)
   })
 })
 

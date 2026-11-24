@@ -205,6 +205,31 @@
     outline-offset: 1px;
   }
 
+  /* Text an AI assistant citation points at: blue, so it is not taken for a search hit. */
+  .pdf-cite-hit {
+    position: absolute;
+    border-radius: 2px;
+    background: rgb(59 130 246 / 0.28);
+    outline: 2px solid rgb(37 99 235 / 0.8);
+    outline-offset: 1px;
+    mix-blend-mode: multiply;
+    animation: pdf-cite-in 1.2s ease-out;
+  }
+
+  @keyframes pdf-cite-in {
+    0%,
+    30% {
+      background: rgb(59 130 246 / 0.55);
+      outline-color: rgb(37 99 235 / 1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pdf-cite-hit {
+      animation: none;
+    }
+  }
+
   /*
    * The text layer: invisible text over the page image, there to be selected.
    * It is laid out in points and scaled to the zoom by a transform.
@@ -952,6 +977,40 @@
       text-decoration: underline;
       text-underline-offset: 2px;
       cursor: pointer;
+    }
+
+    /* A page citation: a small chip that goes to the page and shows the quote. */
+    & .assistant-cite {
+      display: inline-flex;
+      align-items: center;
+      margin: 0 1px;
+      padding: 0 5px;
+      height: 1.35em;
+      border-radius: 9999px;
+      vertical-align: 0.08em;
+      font-size: 0.78em;
+      font-weight: 500;
+      line-height: 1;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      color: var(--primary);
+      background: color-mix(in oklab, var(--primary) 12%, transparent);
+      cursor: pointer;
+      outline: none;
+    }
+
+    & .assistant-cite:hover {
+      background: color-mix(in oklab, var(--primary) 22%, transparent);
+    }
+
+    /* The chip whose quote is highlighted on the page: click again to remove it. */
+    & .assistant-cite[aria-pressed='true'] {
+      color: var(--primary-foreground);
+      background: var(--primary);
+    }
+
+    & .assistant-cite:focus-visible {
+      box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 60%, transparent);
     }
   }
 }

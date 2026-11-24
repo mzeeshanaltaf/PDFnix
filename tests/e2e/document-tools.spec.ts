@@ -44,6 +44,50 @@ test('fills a form', async ({ pdfnix }) => {
   await expect.poll(async () => (await pdfnix.state(path)).modified).toBe(false)
 })
 
+test('right-click in a form field offers Paste, and it pastes', async ({ pdfnix }) => {
+  const { page, app } = pdfnix
+  await pdfnix.open(pdfnix.copy('form.pdf'))
+  // Record the native menu instead of showing it (it cannot be clicked from here).
+  await app.evaluate(({ clipboard, Menu }) => {
+    clipboard.writeText('Grace Hopper')
+    const store = globalThis as Record<string, unknown>
+    store['__pdfnixMenu'] = null
+    Menu.prototype.popup = function (this: Electron.Menu) {
+      store['__pdfnixMenu'] = this
+    }
+  })
+  const menuItems = (): Promise<string[]> =>
+    app.evaluate(() => {
+      const menu = (globalThis as Record<string, unknown>)['__pdfnixMenu'] as Electron.Menu | null
+      return (menu?.items ?? [])
+        .filter((item) => item.role)
+        .map((item) => `${String(item.role).toLowerCase()}:${item.enabled ? 'on' : 'off'}`)
+    })
+
+  const name = page.getByRole('textbox', { name: 'Full name' })
+  await name.click({ button: 'right' })
+  await expect
+    .poll(menuItems)
+    .toEqual(['cut:off', 'copy:off', 'paste:on', 'delete:off', 'selectall:off'])
+
+  // Choosing Paste puts the clipboard's text in the field.
+  await app.evaluate(({ webContents }) => {
+    const menu = (globalThis as Record<string, unknown>)['__pdfnixMenu'] as Electron.Menu
+    const paste = menu.items.find((item) => String(item.role).toLowerCase() === 'paste')
+    const contents = webContents.getAllWebContents()[0]
+    paste?.click(undefined, undefined, contents)
+  })
+  await expect(name).toHaveValue('Grace Hopper')
+
+  // With text in it, Cut, Copy and Select All are offered too.
+  await app.evaluate(() => ((globalThis as Record<string, unknown>)['__pdfnixMenu'] = null))
+  await name.selectText()
+  await name.click({ button: 'right' })
+  await expect
+    .poll(menuItems)
+    .toEqual(['cut:on', 'copy:on', 'paste:on', 'delete:on', 'selectall:on'])
+})
+
 test('redacts a selected word', async ({ pdfnix }) => {
   const { page } = pdfnix
   const path = pdfnix.copy('report.pdf')
