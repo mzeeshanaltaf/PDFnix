@@ -36,7 +36,16 @@ export interface AiServerInfo {
   error?: AiError
   /** Chat models only (no embedding models). */
   models: AiModel[]
+  /**
+   * Set with an `unreachable` error: PDFnix can start the server itself
+   * (`ai.startServer`), because LM Studio's `lms` tool is installed and the
+   * address is on this computer.
+   */
+  canStartServer?: boolean
 }
+
+/** What `ai.startServer()` returns. */
+export type AiStartResult = { ok: true } | { ok: false; message: string }
 
 /**
  * - `unreachable`: nothing answers at the address (server not started)

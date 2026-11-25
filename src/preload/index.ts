@@ -79,6 +79,7 @@ const api: Api = {
   },
   ai: {
     listModels: () => ipcRenderer.invoke(IPC.aiListModels),
+    startServer: () => ipcRenderer.invoke(IPC.aiStartServer),
     chat: (request) => ipcRenderer.invoke(IPC.aiChat, request),
     cancel: (requestId) => ipcRenderer.send(IPC.aiCancel, { requestId }),
     onEvent: (listener) => subscribe<AiEventMessage>(IPC.aiEvent, listener)

@@ -116,12 +116,18 @@ interface AssistantState {
   /** The last `ai.listModels` answer; null until asked. */
   server: AiServerInfo | null
   loadingModels: boolean
+  /** `lms server start` is running. */
+  startingServer: boolean
+  /** Why the last "Start server" did not work; null when it did or was not tried. */
+  startError: string | null
 }
 
 export const useAssistant = create<AssistantState>(() => ({
   tabs: {},
   server: null,
-  loadingModels: false
+  loadingModels: false,
+  startingServer: false,
+  startError: null
 }))
 
 /** The panel's input listens for this to take the focus. */
@@ -248,7 +254,13 @@ export function resetAssistant(): void {
   stopped.clear()
   generations.clear()
   refreshing = null
-  useAssistant.setState({ tabs: {}, server: null, loadingModels: false })
+  useAssistant.setState({
+    tabs: {},
+    server: null,
+    loadingModels: false,
+    startingServer: false,
+    startError: null
+  })
 }
 
 // --- models ----------------------------------------------------------------------
@@ -617,10 +629,32 @@ export function retryAssistant(tabId: string): void {
 
 /** Checks LM Studio again and sends the question that was waiting for it. */
 export async function retryBlocked(tabId: string): Promise<void> {
-  const server = await refreshModels()
+  await sendBlocked(tabId, await refreshModels())
+}
+
+async function sendBlocked(tabId: string, server: AiServerInfo): Promise<void> {
   const blocked = useAssistant.getState().tabs[tabId]?.blocked
   if (!blocked || !server.reachable || server.error || server.models.length === 0) return
   await askAssistant(tabId, blocked)
+}
+
+/**
+ * Starts LM Studio's server (`lms server start`, run by main), then asks for
+ * the models again and sends the question that was waiting, as Retry does.
+ */
+export async function startServer(tabId: string): Promise<void> {
+  if (useAssistant.getState().startingServer) return
+  useAssistant.setState({ startingServer: true, startError: null })
+  const result = await window.api.ai
+    .startServer()
+    .catch((error: unknown) => ({ ok: false as const, message: errorText(error) }))
+  const server = await refreshModels()
+  useAssistant.setState({
+    startingServer: false,
+    // The tool may complain (e.g. already running) while the server answers anyway.
+    startError: result.ok || server.reachable ? null : result.message
+  })
+  await sendBlocked(tabId, server)
 }
 
 /** Empties the chat and forgets the conversation. */

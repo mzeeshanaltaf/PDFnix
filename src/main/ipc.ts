@@ -11,10 +11,11 @@ import {
   type MenuState,
   type UnsavedChoice
 } from '../shared/api'
-import type { AiEventMessage } from '../shared/ai'
+import type { AiEventMessage, AiStartResult } from '../shared/ai'
 import { externalLinkTarget } from '../shared/links'
 import { createAiClient } from './ai'
 import { parseChatRequest } from './ai-protocol'
+import { findLms, startServer as startLmServer, withStartOption } from './lmstudio-cli'
 import type { EngineManager } from './engine'
 import {
   addRecent,
@@ -54,6 +55,8 @@ function noticesPath(): string {
 
 // The address is read from the settings for every request, never taken from the renderer.
 const ai = createAiClient({ serverUrl: getAiServerUrl })
+/** A running `lms server start`. */
+let starting: Promise<AiStartResult> | null = null
 
 /** Windows whose AI requests are stopped when they close or load a new page. */
 const aiOwners = new WeakSet<WebContents>()
@@ -180,7 +183,14 @@ export function registerIpc(engine: EngineManager, onConfirmClose: () => void): 
   ipcMain.handle(IPC.printPrinters, () => listPrinters())
   ipcMain.handle(IPC.printPrint, (_event, request: unknown) => printFile(request))
 
-  ipcMain.handle(IPC.aiListModels, () => ai.listModels())
+  ipcMain.handle(IPC.aiListModels, async () => withStartOption(await ai.listModels(), findLms()))
+  ipcMain.handle(IPC.aiStartServer, () => {
+    // One start at a time; a second click waits for the first.
+    starting ??= startLmServer({ serverUrl: getAiServerUrl(), lmsPath: findLms() }).finally(
+      () => (starting = null)
+    )
+    return starting
+  })
   ipcMain.handle(IPC.aiChat, (event, value: unknown) => {
     const request = parseChatRequest(value)
     const sender = event.sender

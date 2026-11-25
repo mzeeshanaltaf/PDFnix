@@ -4,7 +4,8 @@ import type {
   AiEvent,
   AiEventMessage,
   AiModel,
-  AiServerInfo
+  AiServerInfo,
+  AiStartResult
 } from '../../../shared/ai'
 import type { UserSettings } from '../../../shared/api'
 import type { OpenedDocument, PlainText } from '../api/engine'
@@ -27,6 +28,7 @@ import {
   retryAssistant,
   setContextMode,
   setModel,
+  startServer,
   stopAssistant,
   useAssistant,
   type AnswerItem
@@ -64,6 +66,7 @@ let settings: UserSettings
 
 const ai = {
   listModels: vi.fn<() => Promise<AiServerInfo>>(),
+  startServer: vi.fn<() => Promise<AiStartResult>>(async () => ({ ok: true })),
   chat: vi.fn<(request: AiChatRequest) => Promise<AiEvent>>(),
   cancel: vi.fn<(requestId: string) => void>(),
   onEvent: vi.fn((next: (event: AiEventMessage) => void) => {
@@ -495,6 +498,49 @@ describe('assistant store', () => {
     expect((await nthCall(1)).request.model).toBe('google/gemma-4')
     await vi.waitFor(() => expect(settings.aiModel).toBe('google/gemma-4'))
     expect(chatOf(tabId).blocked).toBeNull()
+  })
+
+  it('starts the server and then sends the question that was waiting', async () => {
+    const down: AiServerInfo = {
+      reachable: false,
+      url: 'http://127.0.0.1:1234',
+      error: { code: 'unreachable', message: 'Not running.' },
+      models: [],
+      canStartServer: true
+    }
+    ai.listModels.mockImplementationOnce(async () => down)
+    await askAssistant(tabId, { action: 'simplify', selection: 'x', page: 0 })
+    expect(chatOf(tabId).blocked).toMatchObject({ action: 'simplify' })
+
+    // Resolves when the waiting question's answer has ended, like Retry.
+    void startServer(tabId)
+    expect(useAssistant.getState().startingServer).toBe(true)
+    const call = await nthCall(1)
+    expect(ai.startServer).toHaveBeenCalledTimes(1)
+    expect(useAssistant.getState()).toMatchObject({ startingServer: false, startError: null })
+    expect(call.request.input).toContain('x')
+  })
+
+  it('shows why the server did not start, unless it answers anyway', async () => {
+    const down: AiServerInfo = {
+      reachable: false,
+      url: 'http://127.0.0.1:1234',
+      error: { code: 'unreachable', message: 'Not running.' },
+      models: [],
+      canStartServer: true
+    }
+    ai.listModels.mockImplementation(async () => down)
+    ai.startServer.mockImplementationOnce(async () => ({ ok: false, message: 'Port busy.' }))
+    await startServer(tabId)
+    expect(useAssistant.getState()).toMatchObject({
+      startingServer: false,
+      startError: 'Port busy.'
+    })
+
+    ai.listModels.mockImplementation(async () => serverWith([GEMMA]))
+    ai.startServer.mockImplementationOnce(async () => ({ ok: false, message: 'Already running.' }))
+    await startServer(tabId)
+    expect(useAssistant.getState().startError).toBeNull()
   })
 
   it('clears the chat, and drops it when the tab closes', async () => {

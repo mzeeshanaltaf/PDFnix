@@ -68,7 +68,7 @@ When you open a document, PDFnix looks for QR codes and barcodes in the backgrou
 
 The AI assistant explains, simplifies and answers questions about the document you are reading. It uses **LM Studio** (version 0.4 or newer) on your own computer, so nothing leaves the computer, unless you set the server address in Settings to another machine.
 
-**Before the first use:** install LM Studio, download a chat model in it (Discover tab), and start its server (Developer → Start server, or run `lms server start`). To have the server always available, turn on LM Studio's option to start it at login.
+**Before the first use:** install LM Studio, download a chat model in it (Discover tab), and start its server (Developer → Start server, or run `lms server start`). If the server isn't running when you open the assistant, the panel offers a **Start server** button that runs `lms server start` for you (on the port of the address in Settings; only for an address on this computer). To have the server always available, turn on LM Studio's option to start it at login.
 
 - Select text, and choose **Simplify** or **Define** in the menu under the selection. The **AI Assistant** panel opens and the answer appears there as it is written. Simplify and Define always answer in English, also for text in another language; questions you type are answered in the language you write them in.
 - **Ask AI Assistant** puts the selected text in the panel's question box as a quote; type your question and press Enter (Shift+Enter starts a new line). You can also type a question without selecting anything.

@@ -3,7 +3,14 @@
  * This file must stay free of runtime imports from Electron or Node.
  */
 
-import type { AiChatRequest, AiContextMode, AiEvent, AiEventMessage, AiServerInfo } from './ai'
+import type {
+  AiChatRequest,
+  AiContextMode,
+  AiEvent,
+  AiEventMessage,
+  AiServerInfo,
+  AiStartResult
+} from './ai'
 
 export type ThemeSource = 'system' | 'light' | 'dark'
 
@@ -386,6 +393,11 @@ export interface Api {
     /** Whether LM Studio answers, and its chat models. Gives up after about 1.5 s. */
     listModels(): Promise<AiServerInfo>
     /**
+     * Runs LM Studio's `lms server start` on the port of the address in the
+     * settings. Only when `listModels` said `canStartServer`. Never rejects.
+     */
+    startServer(): Promise<AiStartResult>
+    /**
      * Streams an answer as `onEvent` events tagged with `request.requestId`,
      * ending with exactly one `done` or `error` event. Resolves with that
      * terminal event once the stream has ended. Rejects only for an invalid
@@ -446,6 +458,7 @@ export const IPC = {
   printPrinters: 'print:printers',
   printPrint: 'print:print',
   aiListModels: 'ai:listModels',
+  aiStartServer: 'ai:startServer',
   aiChat: 'ai:chat',
   aiCancel: 'ai:cancel',
   aiEvent: 'ai:event'

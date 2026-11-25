@@ -7,6 +7,7 @@ import {
   Copy,
   Eraser,
   Loader2,
+  Play,
   RefreshCw,
   RotateCcw,
   Settings,
@@ -39,6 +40,7 @@ import {
   setContextMode,
   setModel,
   setPendingQuote,
+  startServer,
   stopAssistant,
   takeFocusRequest,
   useAssistant,
@@ -207,14 +209,23 @@ function ServerProblem({ tabId }: { tabId: string }): React.JSX.Element | null {
     return (
       <Problem
         onRetry={retry}
+        onStart={server.canStartServer ? () => void startServer(tabId) : undefined}
         settings
         text={
-          <>
-            LM Studio&apos;s server isn&apos;t running. Open LM Studio and start it (Developer →
-            Start server), or run <code className="font-mono text-[12px]">lms server start</code>.
-            To have it always available, turn on LM Studio&apos;s option to start the server at
-            login.
-          </>
+          server.canStartServer ? (
+            <>
+              LM Studio&apos;s server isn&apos;t running. Press Start server, or start it in LM
+              Studio (Developer → Start server). To have it always available, turn on LM
+              Studio&apos;s option to start the server at login.
+            </>
+          ) : (
+            <>
+              LM Studio&apos;s server isn&apos;t running. Open LM Studio and start it (Developer →
+              Start server), or run <code className="font-mono text-[12px]">lms server start</code>.
+              To have it always available, turn on LM Studio&apos;s option to start the server at
+              login.
+            </>
+          )
         }
       />
     )
@@ -238,20 +249,53 @@ function ServerProblem({ tabId }: { tabId: string }): React.JSX.Element | null {
 function Problem({
   text,
   onRetry,
+  onStart,
   retryLabel = 'Retry',
   settings = false
 }: {
   text: React.ReactNode
   onRetry: () => void
+  /** Shows "Start server" (LM Studio's server can be started from here). */
+  onStart?: () => void
   retryLabel?: string
   settings?: boolean
 }): React.JSX.Element {
   const loading = useAssistant((state) => state.loadingModels)
+  const starting = useAssistant((state) => state.startingServer)
+  const startError = useAssistant((state) => state.startError)
   return (
     <div role="status" className="rounded-lg border bg-muted/40 p-3 text-[13px] leading-relaxed">
       <p>{text}</p>
-      <div className="mt-2.5 flex gap-2">
-        <button type="button" className={ACTION_BUTTON} onClick={onRetry} disabled={loading}>
+      {onStart && startError && (
+        <p className="mt-2 text-destructive" data-testid="assistant-start-error">
+          {startError}
+        </p>
+      )}
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        {onStart && (
+          <button
+            type="button"
+            className={cn(
+              ACTION_BUTTON,
+              'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
+            )}
+            onClick={onStart}
+            disabled={starting || loading}
+          >
+            {starting ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Play className="size-3.5" aria-hidden />
+            )}
+            {starting ? 'Starting…' : 'Start server'}
+          </button>
+        )}
+        <button
+          type="button"
+          className={ACTION_BUTTON}
+          onClick={onRetry}
+          disabled={loading || starting}
+        >
           <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} aria-hidden />
           {retryLabel}
         </button>
